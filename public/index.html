@@ -19,6 +19,10 @@
       </svg>
       <h1>Perch</h1>
     </div>
+    <nav class="tabs" id="tabs">
+      <button data-view="roost" class="on">Roost</button>
+      <button data-view="stats">Analytics</button>
+    </nav>
     <div class="topright">
       <div class="topstats" id="topstats"></div>
       <select id="theme" class="themepick" aria-label="Theme">
@@ -33,6 +37,8 @@
   </header>
 
   <main id="grid" class="grid" aria-live="polite"></main>
+  <section id="stats" class="statswrap" hidden></section>
+  <div id="tip" class="tip" hidden></div>
 
   <div id="toast" class="toast" role="status"></div>
 

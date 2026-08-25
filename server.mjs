@@ -4,6 +4,8 @@
 
 import http from "node:http";
 import fs from "node:fs/promises";
+import { createReadStream } from "node:fs";
+import readline from "node:readline";
 import path from "node:path";
 import os from "node:os";
 import { execFile, spawn } from "node:child_process";
@@ -406,6 +408,164 @@ function agentsCached() {
   return cache.promise;
 }
 
+// -------------------------------------------------------------- analytics
+// Two questions, answered from transcript timestamps:
+//  - agent-hours/day: count of distinct active minutes per session per day
+//    (parallel agents stack, like machine-hours)
+//  - waiting-on-you: gap between an agent's last output and your next prompt
+
+const STATS_CACHE_FILE = path.join(os.homedir(), "Library/Caches/perch-analytics.json");
+const WAIT_MAX_MS = 12 * 3600 * 1000; // longer gaps are "parked", not waiting
+let statsFileCache = {}; // file -> { mtime, size, days: {date: minutes}, waits: [[ts, sec]] }
+let statsMemo = { at: 0, data: null };
+
+try {
+  statsFileCache = JSON.parse(await fs.readFile(STATS_CACHE_FILE, "utf8"));
+} catch {}
+
+function dayKey(ms) {
+  const d = new Date(ms);
+  return (
+    d.getFullYear() + "-" +
+    String(d.getMonth() + 1).padStart(2, "0") + "-" +
+    String(d.getDate()).padStart(2, "0")
+  );
+}
+
+async function parseTranscriptStats(file) {
+  const minutes = new Set();
+  const waits = [];
+  let prevTs = 0;
+  let prevWasAgent = false;
+  const rl = readline.createInterface({
+    input: createReadStream(file),
+    crlfDelay: Infinity,
+  });
+  for await (const line of rl) {
+    if (!line) continue;
+    let entry;
+    try {
+      entry = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    const ts = entry.timestamp ? Date.parse(entry.timestamp) : 0;
+    if (!ts) continue;
+    minutes.add(Math.floor(ts / 60000));
+    const isHuman =
+      entry.type === "user" &&
+      !entry.isSidechain &&
+      (entry.origin?.kind === "human" ||
+        entry.promptSource === "typed" ||
+        typeof entry.message?.content === "string");
+    if (isHuman && prevWasAgent && prevTs) {
+      const gap = ts - prevTs;
+      if (gap > 5000 && gap <= WAIT_MAX_MS) waits.push([ts, Math.round(gap / 1000)]);
+    }
+    prevTs = ts;
+    prevWasAgent = !isHuman;
+  }
+  const days = {};
+  for (const minute of minutes) {
+    const key = dayKey(minute * 60000);
+    days[key] = (days[key] || 0) + 1;
+  }
+  return { days, waits };
+}
+
+async function computeStats() {
+  let dirty = false;
+  const seen = new Set();
+  let dirs = [];
+  try {
+    dirs = await fs.readdir(PROJECTS_DIR);
+  } catch {}
+  for (const dir of dirs) {
+    let files = [];
+    try {
+      files = await fs.readdir(path.join(PROJECTS_DIR, dir));
+    } catch {
+      continue;
+    }
+    for (const f of files) {
+      if (!f.endsWith(".jsonl")) continue;
+      const file = path.join(PROJECTS_DIR, dir, f);
+      seen.add(file);
+      let stat;
+      try {
+        stat = await fs.stat(file);
+      } catch {
+        continue;
+      }
+      const cached = statsFileCache[file];
+      if (cached && cached.mtime === stat.mtimeMs && cached.size === stat.size) continue;
+      try {
+        const parsed = await parseTranscriptStats(file);
+        statsFileCache[file] = { mtime: stat.mtimeMs, size: stat.size, ...parsed };
+        dirty = true;
+      } catch {}
+    }
+  }
+  for (const file of Object.keys(statsFileCache)) {
+    if (!seen.has(file)) {
+      delete statsFileCache[file];
+      dirty = true;
+    }
+  }
+  if (dirty) {
+    fs.mkdir(path.dirname(STATS_CACHE_FILE), { recursive: true })
+      .then(() => fs.writeFile(STATS_CACHE_FILE, JSON.stringify(statsFileCache)))
+      .catch(() => {});
+  }
+
+  // Aggregate: last 30 days
+  const now = Date.now();
+  const since = now - 30 * 86400 * 1000;
+  const dayTotals = {};
+  const waits = [];
+  for (const entry of Object.values(statsFileCache)) {
+    for (const [date, mins] of Object.entries(entry.days)) {
+      dayTotals[date] = (dayTotals[date] || 0) + mins;
+    }
+    for (const [ts, sec] of entry.waits) if (ts >= since) waits.push(sec);
+  }
+  const days = [];
+  for (let i = 29; i >= 0; i--) {
+    const key = dayKey(now - i * 86400 * 1000);
+    days.push({ date: key, hours: Math.round(((dayTotals[key] || 0) / 60) * 10) / 10 });
+  }
+
+  waits.sort((a, b) => a - b);
+  const q = (p) => (waits.length ? waits[Math.min(waits.length - 1, Math.floor(p * waits.length))] : 0);
+  const BUCKETS = [
+    ["under 1m", 60], ["1–5m", 300], ["5–15m", 900],
+    ["15–60m", 3600], ["1–4h", 14400], ["over 4h", Infinity],
+  ];
+  const buckets = BUCKETS.map(([label]) => ({ label, count: 0 }));
+  for (const sec of waits) {
+    buckets[BUCKETS.findIndex(([, max]) => sec <= max)].count++;
+  }
+
+  return {
+    days,
+    waits: {
+      count: waits.length,
+      median: q(0.5),
+      p90: q(0.9),
+      buckets,
+    },
+    generatedAt: now,
+  };
+}
+
+function statsCached() {
+  const now = Date.now();
+  if (!statsMemo.data || now - statsMemo.at > 60_000) {
+    statsMemo = { at: now, data: computeStats() };
+  }
+  return statsMemo.data;
+}
+
 // ------------------------------------------------------------ ghostty focus
 // Exact deeplink: we know the agent's tty, so we write a unique title marker
 // straight to /dev/ttysNNN (an escape sequence any terminal renders), then ask
@@ -554,6 +714,9 @@ const server = http.createServer(async (req, res) => {
     if (pathname === "/api/agents") {
       const agents = await agentsCached();
       return sendJson(req, res, 200, { agents, generatedAt: Date.now() });
+    }
+    if (pathname === "/api/stats") {
+      return sendJson(req, res, 200, await statsCached());
     }
     if (pathname === "/api/focus" && req.method === "POST") {
       let body = "";

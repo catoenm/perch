@@ -107,6 +107,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 
 body {
   margin: 0;
@@ -154,6 +155,73 @@ body {
   cursor: pointer;
 }
 .themepick:focus-visible { outline: 1px solid var(--meter); }
+
+.tabs { display: flex; gap: 4px; flex: none; }
+.tabs button {
+  font: inherit; font-size: 12px; font-weight: 600;
+  color: var(--text-muted); background: none;
+  border: 1px solid transparent; border-radius: 8px;
+  padding: 4px 12px; cursor: pointer;
+}
+.tabs button.on {
+  color: var(--text-primary); background: var(--surface-1);
+  border-color: var(--hairline);
+}
+.tabs button:hover:not(.on) { color: var(--text-secondary); }
+
+.statswrap {
+  max-width: 1400px; margin: 0 auto;
+  padding: 16px 32px 40px;
+  display: grid; gap: 14px;
+  grid-template-columns: 1fr 1fr;
+}
+.tiles {
+  grid-column: 1 / -1;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px;
+}
+.tile {
+  background: var(--surface-1); border: 1px solid var(--border);
+  border-radius: 14px; padding: 16px 18px 14px;
+}
+.tile .tvalue { font-size: 26px; font-weight: 650; letter-spacing: -0.02em; }
+.tile .tlabel { color: var(--text-secondary); font-size: 12px; margin-top: 2px; }
+.tile .tsub { color: var(--text-muted); font-size: 11px; margin-top: 4px; }
+
+.chartcard {
+  background: var(--surface-1); border: 1px solid var(--border);
+  border-radius: 14px; padding: 16px 18px 12px; min-width: 0;
+}
+.chartcard h3 { margin: 0 0 12px; font-size: 13px; font-weight: 650; }
+.chartcard h3 span { color: var(--text-muted); font-weight: 400; font-size: 11px; margin-left: 6px; }
+.chartcard svg { display: block; width: 100%; height: auto; }
+.chartcard .gl { stroke: var(--hairline); stroke-width: 1; }
+.chartcard .bl { stroke: var(--track); stroke-width: 1.5; }
+.chartcard .ax { fill: var(--text-muted); font-size: 9.5px; }
+.chartcard .dl { fill: var(--text-secondary); font-size: 9.5px; font-weight: 600; }
+.chartcard .bar { fill: var(--meter); }
+.chartcard .bar:hover { opacity: 0.8; }
+.chartcard details { margin-top: 8px; color: var(--text-muted); font-size: 11px; }
+.chartcard summary { cursor: pointer; }
+.chartcard table { margin-top: 6px; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.chartcard td, .chartcard th {
+  text-align: left; padding: 2px 14px 2px 0;
+  border-bottom: 1px solid var(--hairline); font-weight: 400;
+}
+
+.hbars { display: grid; gap: 8px; padding: 6px 0 10px; }
+.hrow { display: flex; align-items: center; gap: 10px; }
+.hlabel { flex: none; width: 62px; color: var(--text-secondary); font-size: 12px; text-align: right; }
+.htrack { flex: 1; height: 14px; border-radius: 4px; background: var(--track); overflow: hidden; }
+.hfill { display: block; height: 100%; border-radius: 4px; background: var(--meter); min-width: 0; }
+.hcount { flex: none; width: 40px; color: var(--text-secondary); font-size: 12px; font-variant-numeric: tabular-nums; }
+
+.tip {
+  position: absolute; z-index: 10; pointer-events: none;
+  background: var(--surface-1); border: 1px solid var(--border);
+  color: var(--text-primary); font-size: 12px;
+  border-radius: 8px; padding: 4px 9px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+}
 
 .grid {
   display: grid;

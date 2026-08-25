@@ -194,6 +194,141 @@ function showToast(msg) {
   toastTimer = setTimeout(() => toast.classList.remove("show"), 3200);
 }
 
+// ---------------------------------------------------------------- analytics
+
+const statsWrap = document.getElementById("stats");
+const tabs = document.getElementById("tabs");
+const tip = document.getElementById("tip");
+let view =
+  new URLSearchParams(location.hash.slice(1)).get("view") ||
+  localStorage.getItem("perch-view") ||
+  "roost";
+let statsData = null;
+let statsAt = 0;
+let lastAgents = [];
+
+function setView(v) {
+  view = v;
+  localStorage.setItem("perch-view", v);
+  for (const b of tabs.querySelectorAll("button")) b.classList.toggle("on", b.dataset.view === v);
+  grid.hidden = v !== "roost";
+  statsWrap.hidden = v !== "stats";
+  if (v === "stats") refreshStats();
+}
+tabs.addEventListener("click", (e) => {
+  const b = e.target.closest("button");
+  if (b) setView(b.dataset.view);
+});
+
+function fmtDur(sec) {
+  if (sec == null) return "–";
+  if (sec < 60) return Math.round(sec) + "s";
+  if (sec < 3600) return Math.round(sec / 60) + "m";
+  return Math.floor(sec / 3600) + "h " + Math.round((sec % 3600) / 60) + "m";
+}
+
+async function refreshStats() {
+  if (Date.now() - statsAt < 60_000 && statsData) return renderStats();
+  try {
+    const res = await fetch(API + "/api/stats");
+    statsData = await res.json();
+    statsAt = Date.now();
+    renderStats();
+  } catch {
+    statsWrap.innerHTML = `<div class="empty">Couldn't load stats — is the server running?</div>`;
+  }
+}
+
+function tile(value, label, sub) {
+  return `<div class="tile"><div class="tvalue">${value}</div><div class="tlabel">${esc(label)}</div>${sub ? `<div class="tsub">${esc(sub)}</div>` : ""}</div>`;
+}
+
+function dailyChart(days) {
+  const W = 660, H = 190, L = 34, R = 6, T = 14, B = 22;
+  const pw = W - L - R, ph = H - T - B;
+  const max = Math.max(1, ...days.map((d) => d.hours));
+  const step = max <= 3 ? 1 : max <= 8 ? 2 : max <= 20 ? 5 : 10;
+  const top = Math.ceil(max / step) * step;
+  const y = (v) => T + ph - (v / top) * ph;
+  const bw = pw / days.length;
+  let out = "";
+  for (let v = step; v <= top; v += step) {
+    out += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" class="gl"/>` +
+      `<text x="${L - 5}" y="${y(v) + 3}" class="ax" text-anchor="end">${v}</text>`;
+  }
+  out += `<line x1="${L}" x2="${W - R}" y1="${T + ph}" y2="${T + ph}" class="bl"/>`;
+  const maxIdx = days.reduce((m, d, i) => (d.hours > days[m].hours ? i : m), 0);
+  days.forEach((d, i) => {
+    const x = L + i * bw + 1;
+    const w = Math.max(2, bw - 2);
+    const h = Math.max(0, T + ph - y(d.hours));
+    const r = Math.min(3, w / 2, h);
+    if (d.hours > 0) {
+      out += `<path class="bar" data-tip="${esc(d.date)} · ${d.hours}h"
+        d="M${x} ${T + ph} v${-(h - r)} q0 ${-r} ${r} ${-r} h${w - 2 * r} q${r} 0 ${r} ${r} v${h - r} z"/>`;
+    }
+    if ((i === maxIdx || i === days.length - 1) && d.hours > 0) {
+      out += `<text x="${x + w / 2}" y="${y(d.hours) - 4}" class="dl" text-anchor="middle">${d.hours}</text>`;
+    }
+    const dt = new Date(d.date + "T12:00");
+    if (dt.getDay() === 1) {
+      out += `<text x="${x + w / 2}" y="${H - 6}" class="ax" text-anchor="middle">${dt.getMonth() + 1}/${dt.getDate()}</text>`;
+    }
+  });
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Agent-hours per day">${out}</svg>`;
+}
+
+function waitChart(buckets) {
+  const max = Math.max(1, ...buckets.map((b) => b.count));
+  return `<div class="hbars">` + buckets.map((b) => `
+    <div class="hrow">
+      <span class="hlabel">${esc(b.label)}</span>
+      <span class="htrack"><span class="hfill" style="width:${(b.count / max) * 100}%"></span></span>
+      <span class="hcount">${b.count}</span>
+    </div>`).join("") + `</div>`;
+}
+
+function renderStats() {
+  if (!statsData) return;
+  const { days, waits } = statsData;
+  const today = days[days.length - 1];
+  const week = days.slice(-7).reduce((s, d) => s + d.hours, 0);
+  const waitingNow = lastAgents.filter((a) => a.bucket === "yourturn" || a.bucket === "blocked");
+  const oldest = waitingNow.length
+    ? Math.max(...waitingNow.map((a) => Date.now() - (a.statusUpdatedAt || Date.now())))
+    : null;
+
+  statsWrap.innerHTML = `
+    <div class="tiles">
+      ${tile(fmtDur(waits.median), "median wait for you", "last 30 days · " + waits.count + " waits")}
+      ${tile(fmtDur(waits.p90), "p90 wait", "1 in 10 waits is longer")}
+      ${tile(today.hours + "h", "agent-hours today", Math.round(week * 10) / 10 + "h this week")}
+      ${tile(String(waitingNow.length), "waiting on you now", oldest != null ? "longest " + fmtDur(oldest / 1000) : "all clear")}
+    </div>
+    <div class="chartcard">
+      <h3>Agent-hours per day <span>last 30 days · parallel agents stack</span></h3>
+      ${dailyChart(days)}
+      <details><summary>data as table</summary><table>
+        <tr><th>date</th><th>hours</th></tr>
+        ${days.map((d) => `<tr><td>${esc(d.date)}</td><td>${d.hours}</td></tr>`).join("")}
+      </table></details>
+    </div>
+    <div class="chartcard">
+      <h3>How long agents wait on you <span>time from agent done to your next prompt</span></h3>
+      ${waitChart(waits.buckets)}
+    </div>`;
+}
+
+statsWrap.addEventListener("mousemove", (e) => {
+  const bar = e.target.closest("[data-tip]");
+  if (!bar) { tip.hidden = true; return; }
+  tip.textContent = bar.dataset.tip;
+  tip.hidden = false;
+  tip.style.left = e.pageX + 12 + "px";
+  tip.style.top = e.pageY - 28 + "px";
+});
+statsWrap.addEventListener("mouseleave", () => (tip.hidden = true));
+
 // --------------------------------------------------------------------- poll
 
 const INSTALL_CMD = "npm install -g perch-dashboard && perch install";
@@ -220,11 +355,14 @@ async function tick() {
   try {
     const res = await fetch(API + "/api/agents");
     const data = await res.json();
+    lastAgents = data.agents;
     const payload = JSON.stringify(data.agents);
     if (payload !== lastPayload) {
       lastPayload = payload;
       render(data.agents);
+      if (view === "stats") renderStats(); // "waiting on you now" tile is live
     }
+    if (view === "stats") refreshStats();
     freshness.textContent = "live · updated " + new Date(data.generatedAt).toLocaleTimeString();
   } catch {
     // Keep showing the last good data on a blip; onboard when we never had any.
@@ -233,5 +371,6 @@ async function tick() {
   }
 }
 
+setView(view);
 tick();
 setInterval(tick, POLL_MS);

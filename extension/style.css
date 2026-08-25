@@ -326,9 +326,9 @@ body {
 .renameinput:focus-visible { outline: none; }
 
 .msg {
-  flex: none; font: inherit; font-size: 13px; line-height: 1;
+  flex: none; font: inherit; font-size: 15px; line-height: 1;
   color: var(--track); background: none; border: none;
-  padding: 4px 2px; cursor: pointer; transition: color 120ms ease, transform 120ms ease;
+  padding: 4px 3px; cursor: pointer; transition: color 120ms ease, transform 120ms ease;
 }
 .msg:hover { color: var(--meter); transform: scale(1.15); }
 
@@ -477,11 +477,11 @@ body {
 .gh:hover { color: var(--text-primary); }
 
 .peekbtn {
-  flex: none; font: inherit; font-size: 14px; line-height: 1;
+  flex: none; font: inherit; font-size: 19px; line-height: 1;
   color: var(--track); background: none; border: none;
-  padding: 4px 2px; cursor: pointer; transition: color 120ms ease, transform 120ms ease;
+  padding: 4px; cursor: pointer; transition: color 120ms ease, transform 120ms ease;
 }
-.peekbtn:hover { color: var(--text-primary); transform: scale(1.15); }
+.peekbtn:hover { color: var(--text-primary); transform: scale(1.12); }
 
 .overlay {
   position: fixed; inset: 0; z-index: 20;

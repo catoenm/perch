@@ -23,6 +23,7 @@
       <button data-view="roost" class="on">Roost</button>
       <button data-view="stats">Analytics</button>
     </nav>
+    <button id="bcastbtn" class="bcastbtn" title="Send one prompt to many agents">Broadcast</button>
     <div class="topright">
       <div class="topstats" id="topstats"></div>
       <select id="theme" class="themepick" aria-label="Theme">
@@ -36,6 +37,14 @@
     </div>
   </header>
 
+  <div id="bcastbar" class="bcastbar" hidden>
+    <input id="bcasttext" type="text" placeholder="Prompt to send — e.g. unblock your GPG and commit" />
+    <button id="bcastsend" class="primary" disabled>Send</button>
+    <button id="bcastall">All</button>
+    <button id="bcastwaiting">Waiting</button>
+    <button id="bcastcancel" title="Cancel">✕</button>
+    <span class="hint">click cards to select · sends and submits immediately</span>
+  </div>
   <main id="grid" class="grid" aria-live="polite"></main>
   <section id="stats" class="statswrap" hidden></section>
   <div id="tip" class="tip" hidden></div>

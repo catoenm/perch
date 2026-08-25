@@ -170,7 +170,7 @@ function card(agent) {
   const needsYou = agent.attention >= NEEDS_YOU;
   const whyClass = agent.attention >= 70 ? "crit" : needsYou ? "warn" : "";
   return `
-  <article class="card ${agent.bucket === "working" || needsYou ? "" : "dim"}" data-pid="${agent.pid}" title="Click to jump to this Ghostty terminal">
+  <article class="card ${agent.bucket === "working" || needsYou ? "" : "dim"}${selectMode ? (selected.has(agent.pid) ? " selected" : " selectable") : ""}" data-pid="${agent.pid}" title="${selectMode ? "Click to select" : "Click to jump to this Ghostty terminal"}">
     <div class="card-top">
       <div class="avatar">${birdSvg(agent)}</div>
       <div class="idcol">
@@ -229,7 +229,96 @@ function render(agents) {
 
 // ------------------------------------------------------------------ events
 
+// ---------------------------------------------------------------- broadcast
+
+const bcastBtn = document.getElementById("bcastbtn");
+const bcastBar = document.getElementById("bcastbar");
+const bcastText = document.getElementById("bcasttext");
+const bcastSend = document.getElementById("bcastsend");
+let selectMode = false;
+const selected = new Set();
+
+function setSelectMode(on) {
+  selectMode = on;
+  if (!on) selected.clear();
+  bcastBar.hidden = !on;
+  bcastBtn.classList.toggle("on", on);
+  updateSendButton();
+  lastPayload = "";
+  render(lastAgents);
+  if (on) {
+    setView("roost");
+    bcastText.focus();
+  }
+}
+
+function updateSendButton() {
+  bcastSend.textContent = selected.size ? `Send to ${selected.size}` : "Send";
+  bcastSend.disabled = !selected.size || !bcastText.value.trim();
+}
+
+bcastBtn.addEventListener("click", () => setSelectMode(!selectMode));
+document.getElementById("bcastcancel").addEventListener("click", () => setSelectMode(false));
+bcastText.addEventListener("input", updateSendButton);
+bcastText.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !bcastSend.disabled) bcastSend.click();
+  if (e.key === "Escape") setSelectMode(false);
+});
+document.getElementById("bcastall").addEventListener("click", () => {
+  for (const a of lastAgents) selected.add(a.pid);
+  updateSendButton();
+  lastPayload = "";
+  render(lastAgents);
+});
+document.getElementById("bcastwaiting").addEventListener("click", () => {
+  selected.clear();
+  for (const a of lastAgents) {
+    if (a.bucket === "yourturn" || a.bucket === "blocked") selected.add(a.pid);
+  }
+  updateSendButton();
+  lastPayload = "";
+  render(lastAgents);
+});
+bcastSend.addEventListener("click", async () => {
+  const text = bcastText.value.trim();
+  const pids = [...selected];
+  if (!text || !pids.length) return;
+  bcastSend.disabled = true;
+  showToast(`Sending to ${pids.length} agent${pids.length > 1 ? "s" : ""}…`);
+  try {
+    const res = await fetch(API + "/api/broadcast", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ pids, text }),
+    });
+    const { results } = await res.json();
+    const ok = results.filter((r) => r.sent).length;
+    const failed = results.filter((r) => !r.sent);
+    showToast(
+      failed.length
+        ? `Sent to ${ok} · failed: ${failed.map((f) => f.name || f.pid).join(", ")}`
+        : `Sent to ${ok} agent${ok > 1 ? "s" : ""} 📣`
+    );
+    bcastText.value = "";
+    setSelectMode(false);
+  } catch {
+    showToast("Broadcast failed");
+    bcastSend.disabled = false;
+  }
+});
+
 grid.addEventListener("click", async (e) => {
+  if (selectMode) {
+    const el = e.target.closest(".card");
+    if (!el) return;
+    const pid = Number(el.dataset.pid);
+    if (selected.has(pid)) selected.delete(pid);
+    else selected.add(pid);
+    el.classList.toggle("selected", selected.has(pid));
+    el.classList.toggle("selectable", !selected.has(pid));
+    updateSendButton();
+    return;
+  }
   const star = e.target.closest(".star");
   if (star) {
     e.stopPropagation();
@@ -481,5 +570,7 @@ async function tick() {
 }
 
 setView(view);
-tick();
+tick().then(() => {
+  if (new URLSearchParams(location.hash.slice(1)).get("bcast")) setSelectMode(true);
+});
 setInterval(tick, POLL_MS);

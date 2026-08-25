@@ -20,6 +20,9 @@ your attention first**:
   id, so you can recognize "the orange one in backend" without reading anything
 - **Click to jump** — clicking a card focuses that agent's exact Ghostty
   terminal: window, tab, even the right split
+- **Broadcast** — send one prompt to many agents at once ("unblock your GPG
+  and commit"): select cards, type, send — it's typed into each session and
+  submitted, without stealing your focus
 
 One Node process, zero npm dependencies. Nothing leaves your machine except the
 title summaries, which go through your own `claude` CLI like any other prompt.

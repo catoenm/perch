@@ -753,6 +753,78 @@ async function focusAgent(pid) {
   return result;
 }
 
+// -------------------------------------------------------------- broadcast
+// Send one prompt to many agents: mark each agent's tty, find its surface,
+// and use Ghostty's targeted `perform action` with the `text:` action to
+// type into that surface — no focus stealing. A trailing \r submits it.
+
+const ACTION_JXA = `
+function run(argv) {
+  const marker = argv[0];
+  const actions = argv.slice(1);
+  const ghostty = Application("Ghostty");
+  try {
+    const wins = ghostty.windows();
+    for (let wi = 0; wi < wins.length; wi++) {
+      const tabs = wins[wi].tabs();
+      for (let ti = 0; ti < tabs.length; ti++) {
+        const terms = tabs[ti].terminals();
+        for (let x = 0; x < terms.length; x++) {
+          if (((terms[x].name() || "")).includes(marker)) {
+            let ok = true;
+            for (const a of actions) ok = ghostty.performAction(a, { on: terms[x] }) && ok;
+            return JSON.stringify({ sent: !!ok });
+          }
+        }
+      }
+    }
+    return JSON.stringify({ sent: false, reason: "no-surface-match" });
+  } catch (e) {
+    return JSON.stringify({ sent: false, reason: "automation-permission" });
+  }
+}`;
+
+function sanitizePromptText(text) {
+  return text
+    .replace(/\\/g, "\\\\")   // escape for Ghostty's zig-literal action parsing
+    .replace(/\r?\n/g, "\\n") // newlines insert, they don't submit
+    .replace(/[\x00-\x1f\x7f]/g, " ");
+}
+
+async function broadcastPrompt(pids, text) {
+  const agents = await agentsCached();
+  const clean = sanitizePromptText(text.trim()).slice(0, 4000);
+  const results = [];
+  for (const pid of pids) {
+    const agent = agents.find((a) => a.pid === pid);
+    if (!agent) {
+      results.push({ pid, sent: false, reason: "not-found" });
+      continue;
+    }
+    const marker = `⌁perch:${agent.pid}`;
+    const marked =
+      agent.tty && agent.tty !== "??"
+        ? await writeToTty(agent.tty, `\x1b]0;${marker}\x07`)
+        : false;
+    if (marked) await sleep(200);
+    const out = await exec("osascript", [
+      "-l", "JavaScript", "-e", ACTION_JXA,
+      marker, `text:${clean}`, "text:\\r",
+    ]);
+    if (marked) {
+      await writeToTty(agent.tty, `\x1b]0;${agent.title || agent.codename || agent.name}\x07`);
+    }
+    let result;
+    try {
+      result = JSON.parse(out.trim());
+    } catch {
+      result = { sent: false, reason: "osascript-failed" };
+    }
+    results.push({ pid, name: agent.codename || agent.name, ...result });
+  }
+  return { results };
+}
+
 // ------------------------------------------------------------------ server
 
 const MIME = {
@@ -797,6 +869,15 @@ const server = http.createServer(async (req, res) => {
     }
     if (pathname === "/api/stats") {
       return sendJson(req, res, 200, await statsCached());
+    }
+    if (pathname === "/api/broadcast" && req.method === "POST") {
+      let body = "";
+      for await (const chunk of req) body += chunk;
+      const { pids, text } = JSON.parse(body || "{}");
+      if (!Array.isArray(pids) || !pids.length || typeof text !== "string" || !text.trim()) {
+        return sendJson(req, res, 400, { error: "pids[] and text required" });
+      }
+      return sendJson(req, res, 200, await broadcastPrompt(pids.map(Number), text));
     }
     if (pathname === "/api/star" && req.method === "POST") {
       let body = "";

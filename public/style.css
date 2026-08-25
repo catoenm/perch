@@ -223,6 +223,46 @@ body {
   box-shadow: 0 4px 16px rgba(0,0,0,0.2);
 }
 
+.bcastbtn {
+  flex: none; font: inherit; font-size: 12px; font-weight: 600;
+  color: var(--text-secondary); background: none;
+  border: 1px solid var(--hairline); border-radius: 8px;
+  padding: 4px 12px; cursor: pointer;
+}
+.bcastbtn:hover { color: var(--text-primary); border-color: var(--text-muted); }
+.bcastbtn.on { color: var(--meter); border-color: var(--meter); }
+
+.bcastbar {
+  max-width: 1400px; margin: 8px auto 0; padding: 10px 14px;
+  margin-left: 32px; margin-right: 32px;
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  background: var(--surface-1);
+  border: 1px solid color-mix(in srgb, var(--meter) 45%, transparent);
+  border-radius: 12px;
+}
+@media (min-width: 1464px) { .bcastbar { margin-left: auto; margin-right: auto; } }
+.bcastbar input {
+  flex: 1; min-width: 240px; font: inherit; font-size: 13px;
+  color: var(--text-primary); background: var(--page);
+  border: 1px solid var(--hairline); border-radius: 8px; padding: 7px 10px;
+}
+.bcastbar input:focus-visible { outline: 1px solid var(--meter); }
+.bcastbar button {
+  font: inherit; font-size: 12px; font-weight: 600; color: var(--text-secondary);
+  background: none; border: 1px solid var(--hairline); border-radius: 8px;
+  padding: 6px 12px; cursor: pointer;
+}
+.bcastbar button:hover:not(:disabled) { color: var(--text-primary); border-color: var(--text-muted); }
+.bcastbar button.primary { color: var(--page); background: var(--meter); border-color: var(--meter); }
+.bcastbar button.primary:disabled { opacity: 0.45; cursor: default; }
+.bcastbar .hint { flex-basis: 100%; color: var(--text-muted); font-size: 11px; }
+
+.card.selectable { border-style: dashed; }
+.card.selected {
+  border-color: var(--meter);
+  box-shadow: 0 0 0 1px var(--meter);
+}
+
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));

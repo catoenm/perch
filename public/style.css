@@ -72,6 +72,23 @@
   --status-critical: #ff5555;
 }
 
+:root[data-theme="cappuccino"] {
+  color-scheme: light;
+  --page: #ece1d1;
+  --surface-1: #f7f0e4;
+  --text-primary: #3b2a20;
+  --text-secondary: #6b5644;
+  --text-muted: #9c8a77;
+  --hairline: #ddcfba;
+  --border: rgba(59, 42, 32, 0.12);
+  --track: #ddcfba;
+  --meter: #a0663b;
+  --status-good: #557a3a;
+  --status-warning: #a3720a;
+  --status-serious: #b05c2a;
+  --status-critical: #a33328;
+}
+
 :root[data-theme="catppuccin"] {
   color-scheme: dark;
   --page: #181825;

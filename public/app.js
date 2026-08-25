@@ -118,6 +118,8 @@ function card(agent) {
         <div class="path">${esc(agent.name)} · ${esc(agent.project)}${agent.gitBranch && agent.gitBranch !== "HEAD" ? " · " + esc(agent.gitBranch) : ""}</div>
       </div>
       <div class="pill s-${agent.bucket}"><span class="dot"></span>${esc(agent.statusLabel)}</div>
+      <button class="star ${agent.starred ? "on" : ""}" data-session="${agent.sessionId}"
+        title="${agent.starred ? "Unpin" : "Pin to top"}" aria-label="${agent.starred ? "Unpin" : "Pin to top"}">★</button>
     </div>
     <p class="line why ${whyClass}"><span class="k">why</span><span class="v">${esc(agent.attentionReason)} · attention ${agent.attention}</span></p>
     ${agent.lastPrompt ? `<p class="line task"><span class="k">task</span><span class="v">${esc(agent.lastPrompt)}</span></p>` : ""}
@@ -142,11 +144,13 @@ function section(label, agents) {
 
 function render(agents) {
   const byScore = (a, b) => b.attention - a.attention;
-  const needsYou = agents.filter((a) => a.attention >= NEEDS_YOU).sort(byScore);
-  const working = agents
+  const pinned = agents.filter((a) => a.starred).sort(byScore);
+  const rest0 = agents.filter((a) => !a.starred);
+  const needsYou = rest0.filter((a) => a.attention >= NEEDS_YOU).sort(byScore);
+  const working = rest0
     .filter((a) => a.attention < NEEDS_YOU && a.bucket === "working")
     .sort(byScore);
-  const rest = agents
+  const rest = rest0
     .filter((a) => a.attention < NEEDS_YOU && a.bucket !== "working")
     .sort(byScore);
 
@@ -158,13 +162,32 @@ function render(agents) {
     : "";
 
   grid.innerHTML = agents.length
-    ? section("Needs you", needsYou) + section("Working", working) + section("Parked", rest)
+    ? section("Pinned", pinned) + section("Needs you", needsYou) + section("Working", working) + section("Parked", rest)
     : `<div class="empty"><span class="glyph">🪹</span>No agents on the perch.<br>Start one with <code>claude</code> and it will appear here.</div>`;
 }
 
 // ------------------------------------------------------------------ events
 
 grid.addEventListener("click", async (e) => {
+  const star = e.target.closest(".star");
+  if (star) {
+    e.stopPropagation();
+    const starred = !star.classList.contains("on");
+    star.classList.toggle("on", starred); // optimistic
+    try {
+      await fetch(API + "/api/star", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ sessionId: star.dataset.session, starred }),
+      });
+      lastPayload = ""; // force re-render (and re-section) on next poll
+      tick();
+    } catch {
+      star.classList.toggle("on", !starred);
+      showToast("Couldn't save pin");
+    }
+    return;
+  }
   const el = e.target.closest(".card");
   if (!el) return;
   showToast("Finding its terminal…");
@@ -351,10 +374,33 @@ function renderSetup() {
   });
 }
 
+let failCount = 0;
+
+function setDownBanner(down) {
+  let banner = document.getElementById("downbanner");
+  if (down && !banner) {
+    banner = document.createElement("div");
+    banner.id = "downbanner";
+    banner.className = "downbanner";
+    banner.innerHTML = `<span>Perch server stopped — showing stale data. Restart it:</span>
+      <code>perch install</code>
+      <button id="copyrestart">copy</button>
+      <span class="alt">or <code>node server.mjs</code> from the repo</span>`;
+    document.body.insertBefore(banner, grid);
+    banner.querySelector("#copyrestart").addEventListener("click", () => {
+      navigator.clipboard.writeText("perch install").then(() => showToast("Copied"));
+    });
+  } else if (!down && banner) {
+    banner.remove();
+  }
+}
+
 async function tick() {
   try {
     const res = await fetch(API + "/api/agents");
     const data = await res.json();
+    failCount = 0;
+    setDownBanner(false);
     lastAgents = data.agents;
     const payload = JSON.stringify(data.agents);
     if (payload !== lastPayload) {
@@ -365,8 +411,10 @@ async function tick() {
     if (view === "stats") refreshStats();
     freshness.textContent = "live · updated " + new Date(data.generatedAt).toLocaleTimeString();
   } catch {
-    // Keep showing the last good data on a blip; onboard when we never had any.
+    failCount++;
+    // Onboard when we never had data; banner over stale data when it dies later.
     if (!lastPayload) renderSetup();
+    else if (failCount >= 3) setDownBanner(true);
     freshness.textContent = "server unreachable — is perch running?";
   }
 }

@@ -313,6 +313,30 @@ function maybeEnqueueTitle(agent) {
   pumpTitleQueue();
 }
 
+// ------------------------------------------------------------------- stars
+// Pinned sessions, persisted server-side so the extension new tab and the
+// localhost page (different origins) share them.
+
+const STARS_FILE = path.join(os.homedir(), "Library/Application Support/perch/stars.json");
+let stars = {}; // sessionId -> starredAt ms
+
+try {
+  stars = JSON.parse(await fs.readFile(STARS_FILE, "utf8"));
+} catch {}
+
+async function setStar(sessionId, starred) {
+  if (starred) stars[sessionId] = Date.now();
+  else delete stars[sessionId];
+  // sessions never come back once gone; keep only the most recent 200
+  const ids = Object.keys(stars);
+  if (ids.length > 200) {
+    ids.sort((a, b) => stars[a] - stars[b]);
+    for (const id of ids.slice(0, ids.length - 200)) delete stars[id];
+  }
+  await fs.mkdir(path.dirname(STARS_FILE), { recursive: true });
+  await fs.writeFile(STARS_FILE, JSON.stringify(stars));
+}
+
 // --------------------------------------------------------- attention score
 
 function scoreAttention(agent, llm) {
@@ -388,6 +412,7 @@ async function collectAgents() {
               ? Math.min(100, Math.round((transcript.contextTokens / contextWindow) * 100))
               : null,
         };
+        agent.starred = !!stars[agent.sessionId];
         maybeEnqueueTitle(agent);
         const llm = titleCache[agent.sessionId] || null;
         agent.title = llm ? llm.title : null;
@@ -717,6 +742,17 @@ const server = http.createServer(async (req, res) => {
     }
     if (pathname === "/api/stats") {
       return sendJson(req, res, 200, await statsCached());
+    }
+    if (pathname === "/api/star" && req.method === "POST") {
+      let body = "";
+      for await (const chunk of req) body += chunk;
+      const { sessionId, starred } = JSON.parse(body || "{}");
+      if (typeof sessionId !== "string" || !sessionId) {
+        return sendJson(req, res, 400, { error: "sessionId required" });
+      }
+      await setStar(sessionId, !!starred);
+      cache = { at: 0, promise: null }; // reflect immediately on next poll
+      return sendJson(req, res, 200, { ok: true, starred: !!starred });
     }
     if (pathname === "/api/focus" && req.method === "POST") {
       let body = "";

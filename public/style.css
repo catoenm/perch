@@ -262,6 +262,36 @@ body {
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
+.star {
+  flex: none; font: inherit; font-size: 16px; line-height: 1;
+  color: var(--track); background: none; border: none;
+  padding: 4px 2px; cursor: pointer; transition: color 120ms ease, transform 120ms ease;
+}
+.star:hover { color: var(--text-muted); transform: scale(1.15); }
+.star.on { color: var(--status-warning); }
+.star.on:hover { color: var(--status-warning); }
+
+.downbanner {
+  max-width: 1400px; margin: 8px auto 0; padding: 10px 16px;
+  margin-left: 32px; margin-right: 32px;
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  background: color-mix(in srgb, var(--status-critical) 12%, var(--surface-1));
+  border: 1px solid color-mix(in srgb, var(--status-critical) 40%, transparent);
+  border-radius: 12px; font-size: 13px; color: var(--text-primary);
+}
+@media (min-width: 1464px) { .downbanner { margin-left: auto; margin-right: auto; } }
+.downbanner code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px;
+  background: var(--page); border: 1px solid var(--hairline);
+  border-radius: 6px; padding: 2px 8px;
+}
+.downbanner button {
+  font: inherit; font-size: 12px; font-weight: 600; color: var(--text-secondary);
+  background: var(--surface-1); border: 1px solid var(--hairline);
+  border-radius: 6px; padding: 2px 9px; cursor: pointer;
+}
+.downbanner .alt { color: var(--text-muted); font-size: 12px; }
+
 .pill {
   flex: none; display: inline-flex; align-items: center; gap: 6px;
   font-size: 12px; font-weight: 600; color: var(--text-secondary);

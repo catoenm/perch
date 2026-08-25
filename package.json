@@ -5,7 +5,7 @@
   "type": "module",
   "main": "server.mjs",
   "bin": {
-    "perch": "./server.mjs"
+    "perch": "server.mjs"
   },
   "files": [
     "server.mjs",

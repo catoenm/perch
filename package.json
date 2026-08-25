@@ -6,6 +6,7 @@
   "main": "server.mjs",
   "scripts": {
     "start": "node server.mjs",
+    "build-ext": "cp public/style.css public/app.js extension/ && cp public/index.html extension/newtab.html",
     "install-agent": "node server.mjs install",
     "uninstall-agent": "node server.mjs uninstall"
   },

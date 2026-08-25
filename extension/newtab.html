@@ -23,7 +23,7 @@
       <button data-view="roost" class="on">Roost</button>
       <button data-view="stats">Analytics</button>
     </nav>
-    <button id="bcastbtn" class="bcastbtn" title="Send one prompt to many agents">Broadcast</button>
+    <button id="bcastbtn" class="bcastbtn" title="Send one prompt to many agents">Broadcast <kbd id="bcastkbd"></kbd></button>
     <div class="topright">
       <div class="topstats" id="topstats"></div>
       <select id="theme" class="themepick" aria-label="Theme">
@@ -43,7 +43,7 @@
     <button id="bcastall">All</button>
     <button id="bcastwaiting">Waiting</button>
     <button id="bcastcancel" title="Cancel">✕</button>
-    <span class="hint">click cards to select · sends and submits immediately</span>
+    <span class="hint">click cards to select · sends and submits immediately · esc closes</span>
   </div>
   <main id="grid" class="grid" aria-live="polite"></main>
   <section id="stats" class="statswrap" hidden></section>

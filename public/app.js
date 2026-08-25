@@ -260,6 +260,19 @@ function updateSendButton() {
 }
 
 bcastBtn.addEventListener("click", () => setSelectMode(!selectMode));
+
+// ----------------------------------------------------------------- hotkeys
+// ⌘B on macOS, Ctrl+B elsewhere. Esc closes (handled by the bar/composers).
+
+const IS_MAC = /Mac|iP(hone|ad|od)/.test(navigator.platform);
+document.getElementById("bcastkbd").textContent = IS_MAC ? "⌘B" : "Ctrl+B";
+document.addEventListener("keydown", (e) => {
+  const mod = IS_MAC ? e.metaKey && !e.ctrlKey : e.ctrlKey;
+  if (mod && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "b") {
+    e.preventDefault();
+    setSelectMode(!selectMode);
+  }
+});
 document.getElementById("bcastcancel").addEventListener("click", () => setSelectMode(false));
 bcastText.addEventListener("input", updateSendButton);
 bcastText.addEventListener("keydown", (e) => {

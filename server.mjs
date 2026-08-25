@@ -563,6 +563,7 @@ async function collectAgents() {
               : null,
         };
         agent.starred = !!stars[agent.sessionId];
+        agent.queued = outbox.filter((o) => o.pid === agent.pid).length;
         const manual = renames[agent.sessionId];
         if (!manual) maybeEnqueueTitle(agent); // manual labels freeze the topic
         const llm = titleCache[agent.sessionId] || null;
@@ -890,9 +891,46 @@ function sanitizePromptText(text) {
     .replace(/[\x00-\x1f\x7f]/g, " ");
 }
 
+async function injectText(agent, text) {
+  const clean = sanitizePromptText(text.trim()).slice(0, 4000);
+  const marker = `⌁perch:${agent.pid}`;
+  const marked =
+    agent.tty && agent.tty !== "??"
+      ? await writeToTty(agent.tty, `\x1b]0;${marker}\x07`)
+      : false;
+  if (marked) await sleep(200);
+  const out = await exec("osascript", [
+    "-l", "JavaScript", "-e", ACTION_JXA,
+    marker, `text:${clean}`, "text:\\r",
+  ]);
+  if (marked) {
+    await writeToTty(agent.tty, `\x1b]0;${agent.title || agent.codename || agent.name}\x07`);
+  }
+  try {
+    return JSON.parse(out.trim());
+  } catch {
+    return { sent: false, reason: "osascript-failed" };
+  }
+}
+
+// Outbox: only inject into agents that are waiting for input. A working
+// agent would get steered mid-turn; a permission dialog would treat the
+// text as an answer; ! shell-mode would RUN it. Everything else queues and
+// delivers when the agent flips to "your turn".
+const OUTBOX_FILE = path.join(os.homedir(), "Library/Application Support/perch/outbox.json");
+let outbox = []; // { pid, sessionId, text, at }
+
+try {
+  outbox = JSON.parse(await fs.readFile(OUTBOX_FILE, "utf8"));
+} catch {}
+
+async function saveOutbox() {
+  await fs.mkdir(path.dirname(OUTBOX_FILE), { recursive: true });
+  await fs.writeFile(OUTBOX_FILE, JSON.stringify(outbox));
+}
+
 async function broadcastPrompt(pids, text) {
   const agents = await agentsCached();
-  const clean = sanitizePromptText(text.trim()).slice(0, 4000);
   const results = [];
   for (const pid of pids) {
     const agent = agents.find((a) => a.pid === pid);
@@ -900,29 +938,54 @@ async function broadcastPrompt(pids, text) {
       results.push({ pid, sent: false, reason: "not-found" });
       continue;
     }
-    const marker = `⌁perch:${agent.pid}`;
-    const marked =
-      agent.tty && agent.tty !== "??"
-        ? await writeToTty(agent.tty, `\x1b]0;${marker}\x07`)
-        : false;
-    if (marked) await sleep(200);
-    const out = await exec("osascript", [
-      "-l", "JavaScript", "-e", ACTION_JXA,
-      marker, `text:${clean}`, "text:\\r",
-    ]);
-    if (marked) {
-      await writeToTty(agent.tty, `\x1b]0;${agent.title || agent.codename || agent.name}\x07`);
+    if (agent.bucket !== "yourturn") {
+      outbox.push({ pid, sessionId: agent.sessionId, text: text.trim(), at: Date.now() });
+      await saveOutbox();
+      cache = { at: 0, promise: null };
+      results.push({ pid, name: agent.codename || agent.name, sent: false, queued: true });
+      continue;
     }
-    let result;
-    try {
-      result = JSON.parse(out.trim());
-    } catch {
-      result = { sent: false, reason: "osascript-failed" };
-    }
+    const result = await injectText(agent, text);
     results.push({ pid, name: agent.codename || agent.name, ...result });
   }
   return { results };
 }
+
+async function pumpOutbox() {
+  if (!outbox.length) return;
+  let agents;
+  try {
+    agents = await agentsCached();
+  } catch {
+    return;
+  }
+  const byPid = new Map(agents.map((a) => [a.pid, a]));
+  const deliveredTo = new Set();
+  const keep = [];
+  let changed = false;
+  for (const item of outbox) {
+    const agent = byPid.get(item.pid);
+    if (!agent || agent.sessionId !== item.sessionId) {
+      changed = true; // session ended — drop the message
+      continue;
+    }
+    if (agent.bucket === "yourturn" && !deliveredTo.has(item.pid)) {
+      deliveredTo.add(item.pid); // one per agent per cycle, FIFO
+      const result = await injectText(agent, item.text);
+      if (result.sent) {
+        changed = true;
+        continue;
+      }
+    }
+    keep.push(item);
+  }
+  outbox = keep;
+  if (changed) {
+    await saveOutbox();
+    cache = { at: 0, promise: null };
+  }
+}
+setInterval(() => pumpOutbox().catch(() => {}), 3000);
 
 // ------------------------------------------------------------------ server
 
@@ -990,6 +1053,16 @@ const server = http.createServer(async (req, res) => {
         return sendJson(req, res, 400, { error: "pids[] and text required" });
       }
       return sendJson(req, res, 200, await broadcastPrompt(pids.map(Number), text));
+    }
+    if (pathname === "/api/outbox" && req.method === "POST") {
+      let body = "";
+      for await (const chunk of req) body += chunk;
+      const { pid } = JSON.parse(body || "{}");
+      const before = outbox.length;
+      outbox = outbox.filter((o) => o.pid !== Number(pid));
+      await saveOutbox();
+      cache = { at: 0, promise: null };
+      return sendJson(req, res, 200, { ok: true, cleared: before - outbox.length });
     }
     if (pathname === "/api/rename" && req.method === "POST") {
       let body = "";

@@ -432,6 +432,11 @@ body {
   font-variant-numeric: tabular-nums;
 }
 .chip.model { color: var(--text-primary); font-weight: 600; }
+.chip.qd {
+  color: var(--meter); cursor: pointer;
+  border-color: color-mix(in srgb, var(--meter) 40%, transparent);
+}
+.chip.qd:hover { text-decoration: line-through; }
 
 .setup {
   grid-column: 1 / -1;

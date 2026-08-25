@@ -197,6 +197,7 @@ function card(agent) {
       <span class="chip">${esc(agent.tty || "?")}</span>
       <span class="chip">up ${ago(agent.startedAt)}</span>
       <span class="chip">${esc(agent.statusLabel)} for ${ago(agent.statusUpdatedAt)}</span>
+      ${agent.queued ? `<span class="chip qd" data-pid="${agent.pid}" title="Click to cancel queued messages">✉ ${agent.queued} queued</span>` : ""}
     </div>
   </article>`;
 }
@@ -309,12 +310,13 @@ bcastSend.addEventListener("click", async () => {
     });
     const { results } = await res.json();
     const ok = results.filter((r) => r.sent).length;
-    const failed = results.filter((r) => !r.sent);
-    showToast(
-      failed.length
-        ? `Sent to ${ok} · failed: ${failed.map((f) => f.name || f.pid).join(", ")}`
-        : `Sent to ${ok} agent${ok > 1 ? "s" : ""} 📣`
-    );
+    const queued = results.filter((r) => r.queued).length;
+    const failed = results.filter((r) => !r.sent && !r.queued);
+    const parts = [];
+    if (ok) parts.push(`sent to ${ok}`);
+    if (queued) parts.push(`queued for ${queued} (delivers when they're done)`);
+    if (failed.length) parts.push(`failed: ${failed.map((f) => f.name || f.pid).join(", ")}`);
+    showToast(parts.join(" · ") || "Nothing sent");
     bcastText.value = "";
     setSelectMode(false);
   } catch {
@@ -394,7 +396,8 @@ function openComposer(msgBtn) {
         body: JSON.stringify({ pids: [pid], text }),
       });
       const { results } = await res.json();
-      showToast(results[0]?.sent ? `Sent to ${codename} ➤` : `Couldn't reach ${codename}'s terminal`);
+      const r = results[0] || {};
+      showToast(r.sent ? `Sent to ${codename} ➤` : r.queued ? `Queued — ${codename} gets it when it's done` : `Couldn't reach ${codename}'s terminal`);
     } catch {
       showToast("Send failed");
     }
@@ -503,7 +506,8 @@ async function sendFromPeek() {
       body: JSON.stringify({ pids: [peekPid], text }),
     });
     const { results } = await res.json();
-    showToast(results[0]?.sent ? "Sent ➤" : "Couldn't reach the terminal");
+    const r = results[0] || {};
+    showToast(r.sent ? "Sent ➤" : r.queued ? "Queued — delivers when it's done" : "Couldn't reach the terminal");
     setTimeout(refreshPeek, 800);
   } catch {
     showToast("Send failed");
@@ -538,6 +542,24 @@ grid.addEventListener("click", async (e) => {
     el.classList.toggle("selected", selected.has(pid));
     el.classList.toggle("selectable", !selected.has(pid));
     updateSendButton();
+    return;
+  }
+  const qd = e.target.closest(".chip.qd");
+  if (qd) {
+    e.stopPropagation();
+    try {
+      const res = await fetch(API + "/api/outbox", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ pid: Number(qd.dataset.pid) }),
+      });
+      const out = await res.json();
+      showToast(`Cancelled ${out.cleared} queued message${out.cleared === 1 ? "" : "s"}`);
+      lastPayload = "";
+      tick();
+    } catch {
+      showToast("Couldn't cancel");
+    }
     return;
   }
   const star = e.target.closest(".star");

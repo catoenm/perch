@@ -174,7 +174,7 @@ function card(agent) {
     <div class="card-top">
       <div class="avatar">${birdSvg(agent)}</div>
       <div class="idcol">
-        <h2>${esc(agent.title || agent.lastPrompt || agent.codename || agent.name)}</h2>
+        <h2><span class="h2text">${esc(agent.title || agent.lastPrompt || agent.codename || agent.name)}</span><button class="edit" data-session="${agent.sessionId}" title="Rename">✎</button></h2>
         <div class="path"><b>${esc(agent.codename || agent.name)}</b> · ${esc(agent.project)}${agent.gitBranch && agent.gitBranch !== "HEAD" ? " · " + esc(agent.gitBranch) : ""}</div>
       </div>
       <div class="pill s-${agent.bucket}"><span class="dot"></span>${esc(agent.statusLabel)}</div>
@@ -307,7 +307,56 @@ bcastSend.addEventListener("click", async () => {
   }
 });
 
+let editing = false;
+
+function startRename(editBtn) {
+  const h2 = editBtn.closest("h2");
+  const textEl = h2.querySelector(".h2text");
+  const sessionId = editBtn.dataset.session;
+  const input = document.createElement("input");
+  input.className = "renameinput";
+  input.value = textEl.textContent;
+  input.maxLength = 48;
+  editing = true;
+  h2.replaceChildren(input);
+  input.focus();
+  input.select();
+  let done = false;
+  const finish = async (save) => {
+    if (done) return;
+    done = true;
+    editing = false;
+    if (save) {
+      try {
+        await fetch(API + "/api/rename", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ sessionId, title: input.value }),
+        });
+        showToast(input.value.trim() ? "Renamed" : "Reverted to auto label");
+      } catch {
+        showToast("Rename failed");
+      }
+    }
+    lastPayload = "";
+    tick();
+  };
+  input.addEventListener("keydown", (e) => {
+    e.stopPropagation();
+    if (e.key === "Enter") finish(true);
+    if (e.key === "Escape") finish(false);
+  });
+  input.addEventListener("blur", () => finish(true));
+  input.addEventListener("click", (e) => e.stopPropagation());
+}
+
 grid.addEventListener("click", async (e) => {
+  const editBtn = e.target.closest(".edit");
+  if (editBtn && !selectMode) {
+    e.stopPropagation();
+    startRename(editBtn);
+    return;
+  }
   if (selectMode) {
     const el = e.target.closest(".card");
     if (!el) return;
@@ -639,6 +688,7 @@ async function tick() {
     failCount = 0;
     setDownBanner(false);
     lastAgents = data.agents;
+    if (editing) return; // don't clobber an in-progress rename
     const payload = JSON.stringify(data.agents);
     if (payload !== lastPayload) {
       lastPayload = payload;

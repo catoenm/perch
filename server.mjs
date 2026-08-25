@@ -414,28 +414,46 @@ const FOCUS_JXA = `
 function run(argv) {
   const marker = argv[0];
   const cwd = argv[1];
+  const allowCwdFallback = argv[2] === "fallback";
   const ghostty = Application("Ghostty");
-  let target = null, exact = false;
-  try {
-    const terms = ghostty.terminals();
-    for (const t of terms) {
-      if (((t.name() || "")).includes(marker)) { target = t; exact = true; break; }
-    }
-    if (!target) {
-      for (const t of terms) {
-        if ((t.workingDirectory() || "") === cwd) { target = t; break; }
+
+  // Find the (window, tab, terminal) triple so we can select the tab and
+  // raise the window — focusing the surface alone leaves the wrong window up.
+  function find(pred) {
+    const wins = ghostty.windows();
+    for (let wi = 0; wi < wins.length; wi++) {
+      const tabs = wins[wi].tabs();
+      for (let ti = 0; ti < tabs.length; ti++) {
+        const terms = tabs[ti].terminals();
+        for (let x = 0; x < terms.length; x++) {
+          if (pred(terms[x])) return { win: wins[wi], tab: tabs[ti], term: terms[x] };
+        }
       }
     }
+    return null;
+  }
+
+  let hit = null, exact = false;
+  try {
+    for (let attempt = 0; attempt < 6 && !hit; attempt++) {
+      if (attempt > 0) delay(0.25); // title may take a beat to propagate
+      hit = find((t) => ((t.name() || "")).includes(marker));
+    }
+    if (hit) exact = true;
+    else if (allowCwdFallback) hit = find((t) => (t.workingDirectory() || "") === cwd);
   } catch (e) {
     ghostty.activate();
     return JSON.stringify({ focused: false, reason: "automation-permission" });
   }
-  ghostty.activate();
-  if (target) {
-    try { target.focus(); } catch (e) {}
-    return JSON.stringify({ focused: true, exact, title: target.name() });
+  if (!hit) {
+    if (allowCwdFallback) ghostty.activate();
+    return JSON.stringify({ focused: false, reason: "no-surface-match" });
   }
-  return JSON.stringify({ focused: false, reason: "no-surface-match" });
+  try { hit.tab.selectTab(); } catch (e) {}
+  try { hit.win.activateWindow(); } catch (e) {}
+  ghostty.activate();
+  try { hit.term.focus(); } catch (e) {}
+  return JSON.stringify({ focused: true, exact });
 }`;
 
 async function writeToTty(tty, data) {
@@ -457,26 +475,39 @@ async function focusAgent(pid) {
   if (!agent) return { focused: false, reason: "not-found" };
 
   const marker = `⌁perch:${agent.pid}`;
-  const marked =
+  const writeMarker = () =>
     agent.tty && agent.tty !== "??"
-      ? await writeToTty(agent.tty, `\x1b]0;${marker}\x07`)
-      : false;
+      ? writeToTty(agent.tty, `\x1b]0;${marker}\x07`)
+      : Promise.resolve(false);
+
+  const runJxa = async (mode) => {
+    const out = await exec("osascript", [
+      "-l", "JavaScript", "-e", FOCUS_JXA, marker, agent.cwd, mode,
+    ]);
+    try {
+      return JSON.parse(out.trim());
+    } catch {
+      return { focused: false, reason: "osascript-failed" };
+    }
+  };
+
+  let marked = await writeMarker();
   if (marked) await sleep(200); // let Ghostty pick up the new title
 
-  const out = await exec("osascript", [
-    "-l", "JavaScript", "-e", FOCUS_JXA, marker, agent.cwd,
-  ]);
+  // First pass insists on the exact marker; if the agent repainted its title
+  // mid-flight, re-mark and retry once allowing the cwd fallback.
+  let result = await runJxa("strict");
+  if (!result.focused && result.reason === "no-surface-match") {
+    marked = (await writeMarker()) || marked;
+    if (marked) await sleep(200);
+    result = await runJxa("fallback");
+  }
 
   if (marked) {
     // Leave something useful behind: the agent's real title.
     await writeToTty(agent.tty, `\x1b]0;${agent.title || agent.name}\x07`);
   }
-
-  try {
-    return JSON.parse(out.trim());
-  } catch {
-    return { focused: false, reason: "osascript-failed" };
-  }
+  return result;
 }
 
 // ------------------------------------------------------------------ server

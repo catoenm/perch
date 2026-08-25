@@ -247,6 +247,10 @@ const selected = new Set();
 function setSelectMode(on) {
   selectMode = on;
   if (!on) selected.clear();
+  if (on && !document.getElementById("spawnbar").hidden) {
+    document.getElementById("spawnbar").hidden = true;
+    document.getElementById("spawnbtn").classList.remove("on");
+  }
   bcastBar.hidden = !on;
   bcastBtn.classList.toggle("on", on);
   updateSendButton();
@@ -264,6 +268,58 @@ function updateSendButton() {
 }
 
 bcastBtn.addEventListener("click", () => setSelectMode(!selectMode));
+
+// ------------------------------------------------------------------- spawn
+
+const spawnBar = document.getElementById("spawnbar");
+const spawnDir = document.getElementById("spawndir");
+const spawnBtn = document.getElementById("spawnbtn");
+
+function setSpawnMode(on) {
+  spawnBar.hidden = !on;
+  spawnBtn.classList.toggle("on", on);
+  if (on) {
+    if (selectMode) setSelectMode(false);
+    const dirs = [...new Set(lastAgents.map((a) => a.project))];
+    document.getElementById("spawndirs").innerHTML = dirs
+      .map((d) => `<option value="${esc(d)}">`)
+      .join("");
+    spawnDir.focus();
+  }
+}
+
+async function doSpawn(mode) {
+  const cwd = spawnDir.value.trim();
+  if (!cwd) return;
+  showToast("Hatching a new agent…");
+  try {
+    const res = await fetch(API + "/api/spawn", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ cwd, mode }),
+    });
+    const out = await res.json();
+    if (out.ok) {
+      showToast("Ghostty opened — the bird lands here in a few seconds");
+      spawnDir.value = "";
+      setSpawnMode(false);
+    } else {
+      showToast(out.reason === "directory not found" ? "That directory doesn't exist" : "Couldn't open Ghostty");
+    }
+  } catch {
+    showToast("Spawn failed");
+  }
+}
+
+spawnBtn.addEventListener("click", () => setSpawnMode(spawnBar.hidden));
+document.getElementById("spawncancel").addEventListener("click", () => setSpawnMode(false));
+document.getElementById("spawngo").addEventListener("click", () => doSpawn("window"));
+document.getElementById("spawntab").addEventListener("click", () => doSpawn("tab"));
+spawnDir.addEventListener("keydown", (e) => {
+  e.stopPropagation();
+  if (e.key === "Enter") doSpawn(e.metaKey || e.ctrlKey ? "tab" : "window");
+  if (e.key === "Escape") setSpawnMode(false);
+});
 
 // ----------------------------------------------------------------- hotkeys
 // ⌘B on macOS, Ctrl+B elsewhere. Esc closes (handled by the bar/composers).
@@ -567,9 +623,14 @@ document.addEventListener("keydown", (e) => {
   if (e.key !== "Escape") return;
   if (!peekEl.hidden) closePeek();
   else if (selectMode) setSelectMode(false);
+  else if (!spawnBar.hidden) setSpawnMode(false);
 });
 document.getElementById("peeksend").addEventListener("click", sendFromPeek);
 document.getElementById("peekinput").addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    closePeek();
+    return;
+  }
   e.stopPropagation();
   if (e.key === "Enter") sendFromPeek();
 });

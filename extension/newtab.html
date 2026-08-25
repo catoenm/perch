@@ -24,6 +24,7 @@
       <button data-view="stats">Analytics</button>
     </nav>
     <button id="bcastbtn" class="bcastbtn" title="Send one prompt to many agents">Broadcast <kbd id="bcastkbd"></kbd></button>
+    <button id="spawnbtn" class="bcastbtn" title="Start a new Claude agent in a fresh Ghostty window">＋ New agent</button>
     <div class="topright">
       <div class="topstats" id="topstats"></div>
       <a class="gh" href="https://github.com/catoenm/perch" target="_blank" rel="noopener" title="Perch on GitHub" aria-label="Perch on GitHub">
@@ -40,6 +41,14 @@
     </div>
   </header>
 
+  <div id="spawnbar" class="bcastbar" hidden>
+    <input id="spawndir" type="text" list="spawndirs" placeholder="Project directory — e.g. ~/Documents/workspace/backend" />
+    <datalist id="spawndirs"></datalist>
+    <button id="spawntab">Tab</button>
+    <button id="spawngo" class="primary">New window</button>
+    <button id="spawncancel" title="Cancel">✕</button>
+    <span class="hint">opens Ghostty there and runs claude · the bird appears here once it hatches</span>
+  </div>
   <div id="bcastbar" class="bcastbar" hidden>
     <input id="bcasttext" type="text" placeholder="Prompt to send — e.g. unblock your GPG and commit" />
     <button id="bcastsend" class="primary" disabled>Send</button>

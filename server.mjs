@@ -1018,6 +1018,44 @@ async function pumpOutbox() {
 }
 setInterval(() => pumpOutbox().catch(() => {}), 3000);
 
+// ------------------------------------------------------------------- spawn
+// Hatch a new agent: open a Ghostty window (or tab) at a directory with
+// `claude` typed into the fresh shell.
+
+const SPAWN_JXA = `
+function run(argv) {
+  const cwd = argv[0];
+  const mode = argv[1];
+  const ghostty = Application("Ghostty");
+  const config = { initialWorkingDirectory: cwd, initialInput: "claude\\n" };
+  try {
+    if (mode === "tab") ghostty.newTab({ withConfiguration: config });
+    else ghostty.newWindow({ withConfiguration: config });
+    ghostty.activate();
+    return JSON.stringify({ ok: true });
+  } catch (e) {
+    return JSON.stringify({ ok: false, reason: String(e) });
+  }
+}`;
+
+async function spawnAgent(cwd, mode) {
+  const expanded = cwd.replace(/^~(?=\/|$)/, os.homedir());
+  try {
+    const stat = await fs.stat(expanded);
+    if (!stat.isDirectory()) return { ok: false, reason: "not a directory" };
+  } catch {
+    return { ok: false, reason: "directory not found" };
+  }
+  const out = await exec("osascript", [
+    "-l", "JavaScript", "-e", SPAWN_JXA, expanded, mode === "tab" ? "tab" : "window",
+  ]);
+  try {
+    return JSON.parse(out.trim());
+  } catch {
+    return { ok: false, reason: "osascript-failed" };
+  }
+}
+
 // ------------------------------------------------------------------ server
 
 const MIME = {
@@ -1087,6 +1125,15 @@ const server = http.createServer(async (req, res) => {
         return sendJson(req, res, 400, { error: "pids[] and text required" });
       }
       return sendJson(req, res, 200, await broadcastPrompt(pids.map(Number), text));
+    }
+    if (pathname === "/api/spawn" && req.method === "POST") {
+      let body = "";
+      for await (const chunk of req) body += chunk;
+      const { cwd, mode } = JSON.parse(body || "{}");
+      if (typeof cwd !== "string" || !cwd.trim()) {
+        return sendJson(req, res, 400, { error: "cwd required" });
+      }
+      return sendJson(req, res, 200, await spawnAgent(cwd.trim(), mode));
     }
     if (pathname === "/api/attachment" && req.method === "POST") {
       let body = "";

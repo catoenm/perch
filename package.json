@@ -1,6 +1,6 @@
 {
   "name": "perch-dashboard",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "A calm view over every Claude Code agent you have running — status, context, attention ranking, one click back to the terminal.",
   "type": "module",
   "main": "server.mjs",
@@ -17,6 +17,7 @@
   "scripts": {
     "start": "node server.mjs",
     "build-ext": "cp public/style.css public/app.js extension/ && cp public/index.html extension/newtab.html",
+    "pack-ext": "npm run build-ext && mkdir -p dist && cd extension && zip -rq ../dist/perch-extension.zip . -x '.*'",
     "install-agent": "node server.mjs install",
     "uninstall-agent": "node server.mjs uninstall"
   },

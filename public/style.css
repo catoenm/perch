@@ -261,6 +261,7 @@ body {
   color: var(--text-muted); font-size: 12px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
+.idcol .path b { color: var(--text-secondary); font-weight: 600; }
 
 .star {
   flex: none; font: inherit; font-size: 16px; line-height: 1;

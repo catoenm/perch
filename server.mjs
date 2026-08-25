@@ -313,6 +313,59 @@ function maybeEnqueueTitle(agent) {
   pumpTitleQueue();
 }
 
+// --------------------------------------------------------------- codenames
+// Every session gets a two-word bird identity — plumage color + species —
+// and the avatar is drawn FROM the name: color word = feathers, species =
+// silhouette. Deterministic from the session id, collision-adjusted so no
+// two live agents share a name.
+
+const PLUMAGE = [
+  ["Indigo", "#3987e5", "#1c5cab"], ["Copper", "#d95926", "#9c3a12"],
+  ["Jade", "#199e70", "#0c6b4a"], ["Golden", "#c98500", "#8f5e00"],
+  ["Rose", "#d55181", "#a02c58"], ["Forest", "#008300", "#005700"],
+  ["Violet", "#9085e9", "#5c4fc0"], ["Scarlet", "#e66767", "#b13030"],
+  ["Teal", "#14919b", "#0b5f66"], ["Amber", "#e8a13c", "#a06a12"],
+  ["Plum", "#a86bc9", "#6f3f8f"], ["Slate", "#7d8ca3", "#4d5a70"],
+  ["Olive", "#8a9a3c", "#5a6620"], ["Coral", "#ef8968", "#bc5233"],
+  ["Midnight", "#4a5fc1", "#2b3a85"], ["Moss", "#6aa06a", "#3f6b3f"],
+];
+const SPECIES = [
+  "Finch", "Wren", "Owl", "Heron", "Robin", "Sparrow",
+  "Kingfisher", "Cardinal", "Chickadee", "Swallow", "Puffin", "Magpie",
+];
+const codenames = new Map(); // sessionId -> { c, s } (sticky for server lifetime)
+
+function fnv(str) {
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+function assignCodenames(agents) {
+  const sorted = [...agents].sort((a, b) => (a.startedAt || 0) - (b.startedAt || 0));
+  const taken = new Set();
+  for (const agent of sorted) {
+    let pick = codenames.get(agent.sessionId);
+    if (!pick || taken.has(`${pick.c}:${pick.s}`)) {
+      const h = fnv(agent.sessionId);
+      let c = h % PLUMAGE.length;
+      let s = (h >>> 8) % SPECIES.length;
+      for (let i = 0; i < PLUMAGE.length * SPECIES.length && taken.has(`${c}:${s}`); i++) {
+        s = (s + 1) % SPECIES.length;
+        if (s === 0) c = (c + 1) % PLUMAGE.length;
+      }
+      pick = { c, s };
+      codenames.set(agent.sessionId, pick);
+    }
+    taken.add(`${pick.c}:${pick.s}`);
+    agent.codename = `${PLUMAGE[pick.c][0]} ${SPECIES[pick.s]}`;
+    agent.avatar = { c: pick.c, s: pick.s, seed: fnv(agent.sessionId) };
+  }
+}
+
 // ------------------------------------------------------------------- stars
 // Pinned sessions, persisted server-side so the extension new tab and the
 // localhost page (different origins) share them.
@@ -421,7 +474,9 @@ async function collectAgents() {
         return agent;
       })
   );
-  return agents.filter(Boolean);
+  const live = agents.filter(Boolean);
+  assignCodenames(live);
+  return live;
 }
 
 let cache = { at: 0, promise: null };

@@ -68,36 +68,96 @@ function hashCode(str) {
   return h >>> 0;
 }
 
+// Keep in sync with PLUMAGE/SPECIES in server.mjs — the codename IS the bird:
+// the color word picks the feathers, the species picks the silhouette.
 const PLUMAGE = [
   ["#3987e5", "#1c5cab"], ["#d95926", "#9c3a12"], ["#199e70", "#0c6b4a"],
   ["#c98500", "#8f5e00"], ["#d55181", "#a02c58"], ["#008300", "#005700"],
-  ["#9085e9", "#5c4fc0"], ["#e66767", "#b13030"],
+  ["#9085e9", "#5c4fc0"], ["#e66767", "#b13030"], ["#14919b", "#0b5f66"],
+  ["#e8a13c", "#a06a12"], ["#a86bc9", "#6f3f8f"], ["#7d8ca3", "#4d5a70"],
+  ["#8a9a3c", "#5a6620"], ["#ef8968", "#bc5233"], ["#4a5fc1", "#2b3a85"],
+  ["#6aa06a", "#3f6b3f"],
 ];
 
-function birdSvg(seed) {
-  const h = hashCode(seed);
-  const pick = (n, m) => (h >>> n) % m;
-  const [body, dark] = PLUMAGE[pick(0, PLUMAGE.length)];
-  const r = 15 + pick(3, 5);            // body radius
-  const tilt = -14 + pick(6, 5) * 7;    // wing tilt
-  const tuft = pick(9, 3);              // head feathers 0–2
-  const cy = 47 - r;
-  const tufts = Array.from({ length: tuft + 1 }, (_, i) => {
-    const x = 26 + i * 5;
-    return `<path d="M${x} ${cy - r + 2} q ${i - 1} -7 ${(i - 1) * 4 - 2} -9" stroke="${dark}" stroke-width="2" fill="none" stroke-linecap="round"/>`;
-  }).join("");
-  return `<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
-    <rect width="64" height="64" fill="${body}" opacity="0.13"/>
-    <path d="M8 52h48" stroke="${dark}" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
-    <line x1="27" y1="${cy + r - 3}" x2="27" y2="52" stroke="${dark}" stroke-width="2"/>
-    <line x1="35" y1="${cy + r - 3}" x2="35" y2="52" stroke="${dark}" stroke-width="2"/>
-    ${tufts}
-    <circle cx="31" cy="${cy}" r="${r}" fill="${body}"/>
-    <ellipse cx="${28 - r / 4}" cy="${cy + 3}" rx="${r * 0.55}" ry="${r * 0.4}" fill="${dark}" transform="rotate(${tilt} ${28 - r / 4} ${cy + 3})"/>
-    <circle cx="${31 + r * 0.45}" cy="${cy - r * 0.35}" r="2.2" fill="#0b0b0b"/>
-    <circle cx="${31 + r * 0.45 + 0.7}" cy="${cy - r * 0.35 - 0.7}" r="0.7" fill="#ffffff"/>
-    <path d="M${31 + r - 1} ${cy - r * 0.18} l7 2.4 -7 2.4z" fill="${dark}"/>
-  </svg>`;
+// Finch, Wren, Owl, Heron, Robin, Sparrow, Kingfisher, Cardinal,
+// Chickadee, Swallow, Puffin, Magpie
+const SPECIES_DRAW = [
+  { r: 16, wing: true, beak: 6, tufts: 1 },
+  { r: 13, wing: true, beak: 5, tail: "up" },
+  { r: 19, ears: true, eyes: "front", beak: 0, belly: true },
+  { r: 13, neck: true, beak: 11, legLong: true },
+  { r: 16, wing: true, beak: 6, belly: true },
+  { r: 15, wing: true, beak: 5, stripe: true },
+  { r: 16, wing: true, beak: 12, crest: true },
+  { r: 15, wing: true, beak: 6, crest: true, mask: true },
+  { r: 14, wing: true, beak: 4, cap: true, cheek: true },
+  { r: 14, wing: true, beak: 4, tail: "fork" },
+  { r: 18, beak: 8, beakH: 6, belly: true },
+  { r: 15, wing: true, beak: 5, tail: "long", belly: true },
+];
+
+function birdSvg(agent) {
+  const avatar = agent.avatar || {
+    c: hashCode(agent.sessionId) % PLUMAGE.length,
+    s: (hashCode(agent.sessionId) >>> 8) % SPECIES_DRAW.length,
+    seed: hashCode(agent.sessionId),
+  };
+  const [body, dark] = PLUMAGE[avatar.c % PLUMAGE.length];
+  const spec = SPECIES_DRAW[avatar.s % SPECIES_DRAW.length];
+  const r = spec.r;
+  const cy = (spec.legLong ? 42 : 47) - r;
+  const tilt = -14 + (avatar.seed >>> 6) % 5 * 7;
+  const parts = [];
+
+  parts.push(`<rect width="64" height="64" fill="${body}" opacity="0.13"/>`);
+  parts.push(`<path d="M8 52h48" stroke="${dark}" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>`);
+  parts.push(`<line x1="27" y1="${cy + r - 3}" x2="27" y2="52" stroke="${dark}" stroke-width="${spec.legLong ? 1.6 : 2}"/>`);
+  parts.push(`<line x1="35" y1="${cy + r - 3}" x2="35" y2="52" stroke="${dark}" stroke-width="${spec.legLong ? 1.6 : 2}"/>`);
+
+  // behind-the-body features
+  if (spec.tail === "up") parts.push(`<path d="M${31 - r + 2} ${cy + 2} l-9 -8 l4 10 z" fill="${dark}"/>`);
+  if (spec.tail === "fork") parts.push(
+    `<path d="M${31 - r + 2} ${cy + 1} l-12 -4 l5 6 z" fill="${dark}"/>`,
+    `<path d="M${31 - r + 2} ${cy + 5} l-11 5 l5 2 z" fill="${dark}"/>`);
+  if (spec.tail === "long") parts.push(`<path d="M${31 - r + 3} ${cy + 4} l-15 7 l3 4 l13 -6 z" fill="${dark}"/>`);
+  if (spec.ears) parts.push(
+    `<path d="M${31 - r * 0.55} ${cy - r * 0.6} l-3 -8 l8 3 z" fill="${dark}"/>`,
+    `<path d="M${31 + r * 0.55} ${cy - r * 0.6} l3 -8 l-8 3 z" fill="${dark}"/>`);
+  if (spec.crest) parts.push(`<path d="M31 ${cy - r - 7} l6 9 l-11 1 z" fill="${dark}"/>`);
+  if (spec.tufts) parts.push(`<path d="M29 ${cy - r + 2} q0 -7 -3 -9" stroke="${dark}" stroke-width="2" fill="none" stroke-linecap="round"/>`);
+  if (spec.neck) {
+    const hx = 38, hy = cy - r - 7;
+    parts.push(
+      `<path d="M33 ${cy - 5} Q${hx - 1} ${hy + 10} ${hx - 1} ${hy + 2}" stroke="${body}" stroke-width="4.5" fill="none" stroke-linecap="round"/>`,
+      `<circle cx="${hx}" cy="${hy}" r="5.5" fill="${body}"/>`,
+      `<path d="M${hx + 4} ${hy - 2} l11 2 l-11 2 z" fill="${dark}"/>`,
+      `<circle cx="${hx + 1.5}" cy="${hy - 1.5}" r="1.5" fill="#0b0b0b"/>`);
+  }
+
+  parts.push(`<circle cx="31" cy="${cy}" r="${r}" fill="${body}"/>`);
+  if (spec.cap) parts.push(`<path d="M${31 - r} ${cy} a${r} ${r} 0 0 1 ${2 * r} 0 z" fill="${dark}" opacity="0.85"/>`);
+  if (spec.belly) parts.push(`<ellipse cx="29" cy="${cy + r * 0.45}" rx="${r * 0.62}" ry="${r * 0.5}" fill="#ffffff" opacity="0.3"/>`);
+  if (spec.wing) parts.push(`<ellipse cx="${28 - r / 4}" cy="${cy + 3}" rx="${r * 0.55}" ry="${r * 0.4}" fill="${dark}" transform="rotate(${tilt} ${28 - r / 4} ${cy + 3})"/>`);
+  if (spec.stripe) parts.push(`<line x1="${24 - r / 4}" y1="${cy + 3}" x2="${31 - r / 4}" y2="${cy + 1}" stroke="#ffffff" opacity="0.4" stroke-width="1.5"/>`);
+  if (spec.cheek) parts.push(`<circle cx="${31 + r * 0.35}" cy="${cy - r * 0.1}" r="${r * 0.32}" fill="#ffffff" opacity="0.5"/>`);
+
+  if (spec.eyes === "front") {
+    for (const dx of [-5, 5]) parts.push(
+      `<circle cx="${31 + dx}" cy="${cy - r * 0.28}" r="3.4" fill="#ffffff" opacity="0.9"/>`,
+      `<circle cx="${31 + dx}" cy="${cy - r * 0.28}" r="1.7" fill="#0b0b0b"/>`);
+    parts.push(`<path d="M31 ${cy - r * 0.05} l3.5 0 l-1.75 5 z" fill="${dark}"/>`);
+  } else if (!spec.neck) {
+    if (spec.mask) parts.push(`<circle cx="${31 + r * 0.45}" cy="${cy - r * 0.3}" r="4.5" fill="${dark}"/>`);
+    parts.push(
+      `<circle cx="${31 + r * 0.45}" cy="${cy - r * 0.35}" r="2.2" fill="#0b0b0b"/>`,
+      `<circle cx="${31 + r * 0.45 + 0.7}" cy="${cy - r * 0.35 - 0.7}" r="0.7" fill="#ffffff"/>`);
+    if (spec.beak) {
+      const bh = spec.beakH || (spec.beak >= 10 ? 4 : 2.6);
+      parts.push(`<path d="M${31 + r - 1} ${cy - r * 0.18 - bh} l${spec.beak} ${bh} l-${spec.beak} ${bh} z" fill="${dark}"/>`);
+    }
+  }
+
+  return `<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">${parts.join("")}</svg>`;
 }
 
 // ---------------------------------------------------------------- rendering
@@ -112,10 +172,10 @@ function card(agent) {
   return `
   <article class="card ${agent.bucket === "working" || needsYou ? "" : "dim"}" data-pid="${agent.pid}" title="Click to jump to this Ghostty terminal">
     <div class="card-top">
-      <div class="avatar">${birdSvg(agent.sessionId)}</div>
+      <div class="avatar">${birdSvg(agent)}</div>
       <div class="idcol">
-        <h2>${esc(agent.title || agent.lastPrompt || agent.name)}</h2>
-        <div class="path">${esc(agent.name)} · ${esc(agent.project)}${agent.gitBranch && agent.gitBranch !== "HEAD" ? " · " + esc(agent.gitBranch) : ""}</div>
+        <h2>${esc(agent.title || agent.lastPrompt || agent.codename || agent.name)}</h2>
+        <div class="path"><b>${esc(agent.codename || agent.name)}</b> · ${esc(agent.project)}${agent.gitBranch && agent.gitBranch !== "HEAD" ? " · " + esc(agent.gitBranch) : ""}</div>
       </div>
       <div class="pill s-${agent.bucket}"><span class="dot"></span>${esc(agent.statusLabel)}</div>
       <button class="star ${agent.starred ? "on" : ""}" data-session="${agent.sessionId}"
@@ -130,6 +190,7 @@ function card(agent) {
     </div>
     <div class="meta">
       <span class="chip model">${esc(shortModel(agent.model))}</span>
+      <span class="chip">${esc(agent.name)}</span>
       <span class="chip">${esc(agent.tty || "?")}</span>
       <span class="chip">up ${ago(agent.startedAt)}</span>
       <span class="chip">${esc(agent.statusLabel)} for ${ago(agent.statusUpdatedAt)}</span>
@@ -157,7 +218,7 @@ function render(agents) {
   const next = needsYou[0];
   topstats.innerHTML = agents.length
     ? next
-      ? `next up: <b>${esc(next.title || next.name)}</b> — ${esc(next.attentionReason)}`
+      ? `next up: <b>${esc(next.codename || next.name)}</b> — ${esc(next.attentionReason)}`
       : `<b>${agents.length}</b> on the perch · all working, nothing needs you 🎉`
     : "";
 

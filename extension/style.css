@@ -250,6 +250,40 @@ body {
 }
 .chip.model { color: var(--text-primary); font-weight: 600; }
 
+.setup {
+  grid-column: 1 / -1;
+  max-width: 480px;
+  margin: 70px auto 0;
+  text-align: center;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 36px 36px 28px;
+}
+.setup .glyph { font-size: 36px; display: block; margin-bottom: 8px; }
+.setup h2 { margin: 0 0 10px; font-size: 17px; font-weight: 650; }
+.setup p { margin: 0 0 16px; color: var(--text-secondary); font-size: 13px; }
+.setup .alt { color: var(--text-muted); font-size: 12px; margin: 14px 0 0; }
+.setup .cmd {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--page); border: 1px solid var(--hairline); border-radius: 10px;
+  padding: 10px 12px;
+}
+.setup .cmd code {
+  flex: 1; text-align: left; font-size: 12px; color: var(--text-primary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  overflow-x: auto; white-space: nowrap;
+}
+.setup .alt code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px;
+}
+.setup .cmd button {
+  flex: none; font: inherit; font-size: 12px; font-weight: 600;
+  color: var(--text-secondary); background: var(--surface-1);
+  border: 1px solid var(--hairline); border-radius: 7px; padding: 4px 10px; cursor: pointer;
+}
+.setup .cmd button:hover { border-color: var(--text-muted); }
+
 .empty {
   grid-column: 1 / -1; text-align: center; color: var(--text-muted);
   padding: 80px 0; font-size: 15px;

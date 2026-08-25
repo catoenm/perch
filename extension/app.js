@@ -196,6 +196,26 @@ function showToast(msg) {
 
 // --------------------------------------------------------------------- poll
 
+const INSTALL_CMD = "npm install -g perch-dashboard && perch install";
+
+function renderSetup() {
+  topstats.innerHTML = "";
+  grid.innerHTML = `
+  <div class="setup">
+    <span class="glyph">🪹</span>
+    <h2>Perch server isn't running</h2>
+    <p>This page reads your live Claude Code sessions through a tiny local
+    server (localhost only, zero dependencies). Install it once and it starts
+    on login:</p>
+    <div class="cmd"><code>${INSTALL_CMD}</code><button id="copycmd">copy</button></div>
+    <p class="alt">Cloned the repo instead? Run <code>node server.mjs install</code>.
+    This page checks every few seconds and will light up on its own.</p>
+  </div>`;
+  document.getElementById("copycmd").addEventListener("click", () => {
+    navigator.clipboard.writeText(INSTALL_CMD).then(() => showToast("Copied"));
+  });
+}
+
 async function tick() {
   try {
     const res = await fetch(API + "/api/agents");
@@ -207,6 +227,8 @@ async function tick() {
     }
     freshness.textContent = "live · updated " + new Date(data.generatedAt).toLocaleTimeString();
   } catch {
+    // Keep showing the last good data on a blip; onboard when we never had any.
+    if (!lastPayload) renderSetup();
     freshness.textContent = "server unreachable — is perch running?";
   }
 }

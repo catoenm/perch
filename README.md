@@ -68,17 +68,20 @@ running Perch wants to control Ghostty). If the marker can't be found (agent
 inside tmux/ssh, or a non-Ghostty terminal), Perch falls back to matching the
 surface's working directory, then to just bringing Ghostty forward.
 
-## Run it
+## Install
 
 ```sh
-node server.mjs          # http://localhost:4242
+npm install -g perch-dashboard
+perch install              # starts now + on login (macOS LaunchAgent)
 ```
 
-Or keep it running permanently (starts on login, restarts if it dies):
+Then open http://localhost:4242. `perch uninstall` removes the LaunchAgent.
+
+From a clone instead:
 
 ```sh
-node server.mjs install    # writes + loads a LaunchAgent (macOS)
-node server.mjs uninstall  # removes it
+node server.mjs            # run in the foreground, or
+node server.mjs install    # same LaunchAgent setup as above
 ```
 
 Logs go to `~/Library/Logs/perch.log`. Set `PERCH_PORT` to change the port.

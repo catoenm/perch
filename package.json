@@ -1,14 +1,41 @@
 {
-  "name": "perch",
-  "version": "0.1.0",
-  "description": "A calm view over every Claude Code agent you have running — status, context, and one click back to its terminal.",
+  "name": "perch-dashboard",
+  "version": "0.3.0",
+  "description": "A calm view over every Claude Code agent you have running — status, context, attention ranking, one click back to the terminal.",
   "type": "module",
   "main": "server.mjs",
+  "bin": {
+    "perch": "./server.mjs"
+  },
+  "files": [
+    "server.mjs",
+    "public",
+    "extension",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "start": "node server.mjs",
     "build-ext": "cp public/style.css public/app.js extension/ && cp public/index.html extension/newtab.html",
     "install-agent": "node server.mjs install",
     "uninstall-agent": "node server.mjs uninstall"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/catoenm/perch.git"
+  },
+  "homepage": "https://github.com/catoenm/perch#readme",
+  "keywords": [
+    "claude",
+    "claude-code",
+    "dashboard",
+    "agents",
+    "ghostty",
+    "new-tab"
+  ],
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
   },
   "engines": {
     "node": ">=18"

@@ -1,6 +1,9 @@
-/* Perch — ink & surface tokens (light + dark), status palette is fixed. */
+/* Perch — themes define the tokens; everything below is written against them.
+   Bird avatars keep their fixed plumage in every theme: color follows the
+   agent, not the room. */
+
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
   --page: #f9f9f7;
   --surface-1: #fcfcfb;
   --text-primary: #0b0b0b;
@@ -15,8 +18,10 @@
   --status-serious: #c05a32;
   --status-critical: #d03b3b;
 }
+
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme]) {
+    color-scheme: dark;
     --page: #0d0d0d;
     --surface-1: #1a1a19;
     --text-primary: #ffffff;
@@ -31,6 +36,57 @@
     --status-serious: #ec835a;
     --status-critical: #d03b3b;
   }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0d0d0d;
+  --surface-1: #1a1a19;
+  --text-primary: #ffffff;
+  --text-secondary: #c3c2b7;
+  --text-muted: #898781;
+  --hairline: #2c2c2a;
+  --border: rgba(255, 255, 255, 0.1);
+  --track: #2c2c2a;
+  --meter: #3987e5;
+  --status-good: #0ca30c;
+  --status-warning: #fab219;
+  --status-serious: #ec835a;
+  --status-critical: #d03b3b;
+}
+
+:root[data-theme="dracula"] {
+  color-scheme: dark;
+  --page: #21222c;
+  --surface-1: #282a36;
+  --text-primary: #f8f8f2;
+  --text-secondary: #c7cbe0;
+  --text-muted: #6272a4;
+  --hairline: #44475a;
+  --border: rgba(248, 248, 242, 0.09);
+  --track: #44475a;
+  --meter: #bd93f9;
+  --status-good: #50fa7b;
+  --status-warning: #f1fa8c;
+  --status-serious: #ffb86c;
+  --status-critical: #ff5555;
+}
+
+:root[data-theme="catppuccin"] {
+  color-scheme: dark;
+  --page: #181825;
+  --surface-1: #1e1e2e;
+  --text-primary: #cdd6f4;
+  --text-secondary: #bac2de;
+  --text-muted: #6c7086;
+  --hairline: #313244;
+  --border: rgba(205, 214, 244, 0.08);
+  --track: #313244;
+  --meter: #89b4fa;
+  --status-good: #a6e3a1;
+  --status-warning: #f9e2af;
+  --status-serious: #fab387;
+  --status-critical: #f38ba8;
 }
 
 * { box-sizing: border-box; }
@@ -49,15 +105,38 @@ body {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
+  gap: 16px;
   padding: 28px 32px 8px;
   max-width: 1400px;
   margin: 0 auto;
 }
-.brand { display: flex; align-items: center; gap: 10px; }
+.brand { display: flex; align-items: center; gap: 10px; flex: none; }
 .brand-mark { width: 26px; height: 26px; color: var(--text-primary); align-self: center; }
 .brand h1 { font-size: 20px; font-weight: 650; letter-spacing: -0.01em; margin: 0; }
-.topstats { color: var(--text-secondary); font-size: 13px; }
+.topright { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.topstats {
+  color: var(--text-secondary); font-size: 13px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 .topstats b { color: var(--text-primary); font-weight: 600; }
+
+.themepick {
+  flex: none;
+  appearance: none;
+  font: inherit; font-size: 12px;
+  color: var(--text-secondary);
+  background: var(--surface-1);
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  padding: 3px 22px 3px 10px;
+  background-image: linear-gradient(45deg, transparent 50%, var(--text-muted) 50%),
+    linear-gradient(135deg, var(--text-muted) 50%, transparent 50%);
+  background-position: calc(100% - 13px) 55%, calc(100% - 9px) 55%;
+  background-size: 4px 4px;
+  background-repeat: no-repeat;
+  cursor: pointer;
+}
+.themepick:focus-visible { outline: 1px solid var(--meter); }
 
 .grid {
   display: grid;

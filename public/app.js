@@ -6,6 +6,25 @@ const POLL_MS = 3000;
 const NEEDS_YOU = 45; // attention score threshold
 
 const grid = document.getElementById("grid");
+const themePick = document.getElementById("theme");
+
+// ------------------------------------------------------------------- themes
+
+function applyTheme(name) {
+  if (name === "auto") delete document.documentElement.dataset.theme;
+  else document.documentElement.dataset.theme = name;
+}
+const savedTheme =
+  new URLSearchParams(location.hash.slice(1)).get("theme") ||
+  localStorage.getItem("perch-theme") ||
+  "auto";
+applyTheme(savedTheme);
+themePick.value = savedTheme;
+themePick.addEventListener("change", () => {
+  localStorage.setItem("perch-theme", themePick.value);
+  applyTheme(themePick.value);
+});
+
 const topstats = document.getElementById("topstats");
 const freshness = document.getElementById("freshness");
 const toast = document.getElementById("toast");

@@ -71,6 +71,9 @@ function stripNoise(text) {
     .replace(/<command-args>([\s\S]*?)<\/command-args>/g, " $1")
     .replace(/<command-name>([\s\S]*?)<\/command-name>/g, "$1")
     .replace(/<local-command-stdout>[\s\S]*?<\/local-command-stdout>/g, " ")
+    .replace(/<bash-(stdout|stderr|input)>[\s\S]*?<\/bash-\1>/g, " ")
+    .replace(/\x1b\[[0-9;]*[A-Za-z]/g, " ") // ANSI escapes
+    .replace(/\[[0-9;]{1,16}m/g, " ") // ANSI remnants with the ESC already lost
     .replace(/\s+/g, " ")
     .trim();
 }

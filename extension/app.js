@@ -502,6 +502,84 @@ statsWrap.addEventListener("mousemove", (e) => {
 });
 statsWrap.addEventListener("mouseleave", () => (tip.hidden = true));
 
+// ---------------------------------------------------------------- demo mode
+// #demo=1 renders fabricated agents — for screenshots, store listings, and
+// kicking the tires without a server. No API calls are made.
+
+const DEMO = !!new URLSearchParams(location.hash.slice(1)).get("demo");
+const now = Date.now();
+const DEMO_AGENTS = [
+  { pid: 1, sessionId: "demo-1", codename: "Jade Heron", name: "backend-12", avatar: { c: 2, s: 3, seed: 71 },
+    project: "~/code/backend", gitBranch: "feat/sso-rollout", tty: "ttys003", model: "claude-fable-5",
+    bucket: "blocked", statusLabel: "needs approval", status: "permission",
+    title: "Deploy blocked on AWS SSO login", attention: 88, attentionReason: "needs browser auth to proceed",
+    lastPrompt: "Ship the SSO rollout to staging and watch the deploy",
+    lastAssistant: "The deploy is staged and healthy up to the auth step — I need you to complete the AWS SSO login in your browser, then I'll resume the rollout.",
+    contextTokens: 412_000, contextWindow: 1_000_000, contextPct: 41,
+    startedAt: now - 26 * 3600e3, statusUpdatedAt: now - 42 * 60e3, updatedAt: now },
+  { pid: 2, sessionId: "demo-2", codename: "Copper Owl", name: "api-07", avatar: { c: 1, s: 2, seed: 12 }, starred: true,
+    project: "~/code/api", gitBranch: "fix/rate-limits", tty: "ttys001", model: "claude-fable-5",
+    bucket: "yourturn", statusLabel: "your turn", status: "idle",
+    title: "PR #482 green, awaiting merge", attention: 64, attentionReason: "CI passing, wants your review",
+    lastPrompt: "Fix the flaky rate-limit tests and get the PR green",
+    lastAssistant: "All 31 checks are passing after pinning the clock in the token-bucket tests. PR #482 is ready for your review and merge.",
+    contextTokens: 156_000, contextWindow: 200_000, contextPct: 78,
+    startedAt: now - 9 * 3600e3, statusUpdatedAt: now - 18 * 60e3, updatedAt: now },
+  { pid: 3, sessionId: "demo-3", codename: "Indigo Finch", name: "web-03", avatar: { c: 0, s: 0, seed: 5 },
+    project: "~/code/web", gitBranch: "feat/jwt-migration", tty: "ttys004", model: "claude-fable-5",
+    bucket: "working", statusLabel: "working", status: "busy",
+    title: "Migrating auth service to JWTs", attention: 8, attentionReason: "working autonomously",
+    lastPrompt: "Migrate session auth to JWTs behind the feature flag",
+    lastAssistant: "Rotating the signing keys into the KMS wrapper now — 14 of 22 call sites migrated, tests green so far.",
+    contextTokens: 88_000, contextWindow: 200_000, contextPct: 44,
+    startedAt: now - 3 * 3600e3, statusUpdatedAt: now - 90e3, updatedAt: now },
+  { pid: 4, sessionId: "demo-4", codename: "Slate Puffin", name: "infra-22", avatar: { c: 11, s: 10, seed: 33 },
+    project: "~/code/infra", gitBranch: "main", tty: "ttys007", model: "claude-fable-5",
+    bucket: "working", statusLabel: "shell", status: "shell",
+    title: "Auditing dependency tree for CVEs", attention: 21, attentionReason: "context running low",
+    lastPrompt: "Audit our dependency tree against last week's CVE batch",
+    lastAssistant: "Scanning the lockfiles now — two advisories look relevant so far, both in transitive deps of the image pipeline.",
+    contextTokens: 182_000, contextWindow: 200_000, contextPct: 91,
+    startedAt: now - 14 * 24 * 3600e3, statusUpdatedAt: now - 30e3, updatedAt: now },
+  { pid: 5, sessionId: "demo-5", codename: "Rose Kingfisher", name: "billing-04", avatar: { c: 4, s: 6, seed: 88 },
+    project: "~/code/billing", gitBranch: "chore/cron-refactor", tty: "ttys010", model: "claude-fable-5",
+    bucket: "yourturn", statusLabel: "your turn", status: "idle",
+    title: "Billing cron refactored, awaiting direction", attention: 47, attentionReason: "finished, awaiting next task",
+    lastPrompt: "Untangle the retry logic in the invoice cron",
+    lastAssistant: "Done — retries now use exponential backoff with a dead-letter queue, and the double-charge window is closed. What's next?",
+    contextTokens: 64_000, contextWindow: 200_000, contextPct: 32,
+    startedAt: now - 5 * 3600e3, statusUpdatedAt: now - 8 * 60e3, updatedAt: now },
+  { pid: 6, sessionId: "demo-6", codename: "Golden Chickadee", name: "web-09", avatar: { c: 3, s: 8, seed: 51 },
+    project: "~/code/web", gitBranch: "test/checkout-e2e", tty: "ttys012", model: "claude-fable-5",
+    bucket: "working", statusLabel: "working", status: "busy",
+    title: "Writing e2e tests for checkout", attention: 6, attentionReason: "working autonomously",
+    lastPrompt: "Cover the new checkout flow with e2e tests",
+    lastAssistant: "Card-decline and promo-code paths are covered; writing the multi-currency case now.",
+    contextTokens: 47_000, contextWindow: 200_000, contextPct: 23,
+    startedAt: now - 55 * 60e3, statusUpdatedAt: now - 12e3, updatedAt: now },
+];
+
+const DEMO_STATS = {
+  days: Array.from({ length: 30 }, (_, i) => {
+    const d = new Date(now - (29 - i) * 86400e3);
+    const weekend = d.getDay() === 0 || d.getDay() === 6;
+    const base = weekend ? 0.7 : 3.1;
+    return {
+      date: d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"),
+      hours: Math.round((base + Math.sin(i * 1.7) * 1.2 + (i % 5) * 0.3) * 10) / 10,
+    };
+  }),
+  waits: {
+    count: 512, median: 180, p90: 2400,
+    buckets: [
+      { label: "under 1m", count: 148 }, { label: "1–5m", count: 197 },
+      { label: "5–15m", count: 74 }, { label: "15–60m", count: 58 },
+      { label: "1–4h", count: 27 }, { label: "over 4h", count: 8 },
+    ],
+  },
+  generatedAt: now,
+};
+
 // --------------------------------------------------------------------- poll
 
 const INSTALL_CMD = "npm install -g perch-dashboard && perch install";
@@ -546,6 +624,15 @@ function setDownBanner(down) {
 }
 
 async function tick() {
+  if (DEMO) {
+    lastAgents = DEMO_AGENTS;
+    statsData = DEMO_STATS;
+    statsAt = Date.now();
+    render(DEMO_AGENTS);
+    if (view === "stats") renderStats();
+    freshness.textContent = "demo data";
+    return;
+  }
   try {
     const res = await fetch(API + "/api/agents");
     const data = await res.json();

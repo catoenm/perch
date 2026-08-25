@@ -385,6 +385,8 @@ body {
 .pill.s-working { color: var(--status-good); border-color: color-mix(in srgb, var(--status-good) 35%, transparent); }
 .pill.s-yourturn .dot { background: var(--status-warning); }
 .pill.s-yourturn { color: var(--status-warning); border-color: color-mix(in srgb, var(--status-warning) 35%, transparent); }
+.pill.s-human .dot { background: var(--meter); }
+.pill.s-human { color: var(--text-secondary); }
 .pill.s-blocked .dot { background: var(--status-serious); }
 .pill.s-blocked { color: var(--status-serious); border-color: color-mix(in srgb, var(--status-serious) 40%, transparent); }
 

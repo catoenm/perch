@@ -98,7 +98,9 @@ function snippet(text, max = 280) {
 
 const STATUS = {
   busy: { bucket: "working", label: "working" },
-  shell: { bucket: "working", label: "shell" },
+  // "shell" = the HUMAN is using that terminal's shell (! bash-mode);
+  // agent-driven commands report "busy" — verified empirically.
+  shell: { bucket: "human", label: "in shell" },
   compacting: { bucket: "working", label: "compacting" },
   thinking: { bucket: "working", label: "working" },
   idle: { bucket: "yourturn", label: "your turn" },
@@ -339,7 +341,7 @@ DATA:
 project directory: ${path.basename(agent.cwd)}
 git branch (weak hint): ${agent.gitBranch || "?"}
 prior topic: ${prior ? `<<<${prior}>>>` : "(none)"}
-status: ${agent.status} (${agent.bucket})
+status: ${agent.status} (${agent.bucket}${agent.status === "shell" ? " — the HUMAN is using this terminal's shell right now; the agent is NOT working" : ""})
 minutes in this status: ${Math.round((Date.now() - (agent.statusUpdatedAt || Date.now())) / 60000)}
 context used: ${agent.contextPct ?? "?"}%
 human's recent prompts, newest first: <<<${(agent.recentPrompts || []).map(p => p.slice(0, 300)).join(" ||| ") || agent.lastPrompt || ""}>>>
@@ -486,10 +488,11 @@ async function setStar(sessionId, starred) {
 // --------------------------------------------------------- attention score
 
 function scoreAttention(agent, llm) {
-  const base = { blocked: 65, yourturn: 40, other: 20, working: 5 }[agent.bucket];
+  const base = { blocked: 65, yourturn: 40, other: 20, working: 5, human: 10 }[agent.bucket];
   let score = base;
   if (llm && llm.attention != null) {
-    score += llm.attention * 3.5 * (agent.bucket === "working" ? 0.25 : 1);
+    const damp = agent.bucket === "working" ? 0.25 : agent.bucket === "human" ? 0.5 : 1;
+    score += llm.attention * 3.5 * damp;
   }
   if (agent.bucket === "yourturn" || agent.bucket === "blocked") {
     const hours = (Date.now() - (agent.statusUpdatedAt || Date.now())) / 3_600_000;
@@ -505,6 +508,7 @@ function fallbackReason(agent) {
   if (agent.bucket === "blocked") return "waiting on approval";
   if (agent.bucket === "yourturn") return "finished — awaiting instructions";
   if (agent.bucket === "working") return "working autonomously";
+  if (agent.bucket === "human") return "you're at its shell prompt";
   return "state unknown";
 }
 

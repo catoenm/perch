@@ -178,6 +178,7 @@ function card(agent) {
         <div class="path"><b>${esc(agent.codename || agent.name)}</b> · ${esc(agent.project)}${agent.gitBranch && agent.gitBranch !== "HEAD" ? " · " + esc(agent.gitBranch) : ""}</div>
       </div>
       <div class="pill s-${agent.bucket}"><span class="dot"></span>${esc(agent.statusLabel)}</div>
+      <button class="peekbtn" data-pid="${agent.pid}" title="Show conversation" aria-label="Show conversation">⤢</button>
       <button class="msg" data-pid="${agent.pid}" data-codename="${esc(agent.codename || agent.name)}"
         title="Send a prompt to this agent" aria-label="Send a prompt to this agent">➤</button>
       <button class="star ${agent.starred ? "on" : ""}" data-session="${agent.sessionId}"
@@ -409,7 +410,113 @@ function openComposer(msgBtn) {
   input.focus();
 }
 
+// ---------------------------------------------------------- transcript peek
+
+const peekEl = document.getElementById("peek");
+const peekBody = document.getElementById("peekbody");
+let peekPid = null;
+let peekTimer = null;
+let peekPayload = "";
+
+function renderPeek(data) {
+  const payload = JSON.stringify(data.messages);
+  if (payload === peekPayload) return;
+  peekPayload = payload;
+  const atBottom = peekBody.scrollHeight - peekBody.scrollTop - peekBody.clientHeight < 60;
+  peekBody.innerHTML = data.messages.map((m) => {
+    if (m.role === "tools") return `<div class="m-tools">⋯ ${m.count} tool call${m.count > 1 ? "s" : ""} ⋯</div>`;
+    return `<div class="m ${m.role}"><span class="who">${m.role === "user" ? "you" : "agent"}</span><div class="bubble">${esc(m.text)}</div></div>`;
+  }).join("") || `<div class="m-tools">no conversation yet</div>`;
+  if (atBottom || !peekBody.dataset.scrolled) peekBody.scrollTop = peekBody.scrollHeight;
+}
+
+async function refreshPeek() {
+  if (peekPid == null) return;
+  try {
+    const res = await fetch(`${API}/api/transcript?pid=${peekPid}`);
+    if (!res.ok) throw new Error();
+    renderPeek(await res.json());
+  } catch {
+    peekBody.innerHTML = `<div class="m-tools">couldn't load transcript</div>`;
+  }
+}
+
+function openPeek(pid) {
+  const agent = lastAgents.find((a) => a.pid === pid);
+  if (!agent) return;
+  peekPid = pid;
+  peekPayload = "";
+  document.getElementById("peekavatar").innerHTML = birdSvg(agent);
+  document.getElementById("peektitle").textContent = agent.title || agent.codename;
+  document.getElementById("peeksub").textContent = `${agent.codename} · ${agent.project}`;
+  document.getElementById("peekinput").placeholder = `Send a prompt to ${agent.codename} — Enter submits it`;
+  peekBody.innerHTML = `<div class="m-tools">loading…</div>`;
+  peekEl.hidden = false;
+  refreshPeek();
+  clearInterval(peekTimer);
+  peekTimer = setInterval(refreshPeek, 3000);
+}
+
+function closePeek() {
+  peekEl.hidden = true;
+  peekPid = null;
+  clearInterval(peekTimer);
+}
+
+peekEl.addEventListener("click", (e) => {
+  if (e.target === peekEl) closePeek();
+});
+document.getElementById("peekclose").addEventListener("click", closePeek);
+document.getElementById("peekjump").addEventListener("click", async () => {
+  const pid = peekPid;
+  closePeek();
+  showToast("Finding its terminal…");
+  try {
+    const res = await fetch(API + "/api/focus", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ pid }),
+    });
+    const out = await res.json();
+    showToast(out.focused ? "Jumped to its terminal" : "Couldn't reach Ghostty");
+  } catch {
+    showToast("Focus failed");
+  }
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !peekEl.hidden) closePeek();
+});
+document.getElementById("peeksend").addEventListener("click", sendFromPeek);
+document.getElementById("peekinput").addEventListener("keydown", (e) => {
+  e.stopPropagation();
+  if (e.key === "Enter") sendFromPeek();
+});
+async function sendFromPeek() {
+  const input = document.getElementById("peekinput");
+  const text = input.value.trim();
+  if (!text || peekPid == null) return;
+  input.value = "";
+  try {
+    const res = await fetch(API + "/api/broadcast", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ pids: [peekPid], text }),
+    });
+    const { results } = await res.json();
+    showToast(results[0]?.sent ? "Sent ➤" : "Couldn't reach the terminal");
+    setTimeout(refreshPeek, 800);
+  } catch {
+    showToast("Send failed");
+  }
+}
+
 grid.addEventListener("click", async (e) => {
+  const peekBtn = e.target.closest(".peekbtn");
+  if (peekBtn && !selectMode) {
+    e.stopPropagation();
+    openPeek(Number(peekBtn.dataset.pid));
+    return;
+  }
   const msgBtn = e.target.closest(".msg");
   if (msgBtn && !selectMode) {
     e.stopPropagation();
@@ -773,6 +880,8 @@ async function tick() {
 
 setView(view);
 tick().then(() => {
-  if (new URLSearchParams(location.hash.slice(1)).get("bcast")) setSelectMode(true);
+  const params = new URLSearchParams(location.hash.slice(1));
+  if (params.get("bcast")) setSelectMode(true);
+  if (params.get("peek")) openPeek(Number(params.get("peek")));
 });
 setInterval(tick, POLL_MS);

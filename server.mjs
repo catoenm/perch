@@ -210,6 +210,68 @@ async function parseTranscript(cwd, sessionId) {
   return result;
 }
 
+// ------------------------------------------------------ conversation peek
+
+function cleanConv(text) {
+  return text
+    .replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, "")
+    .replace(/<task-notification>[\s\S]*?<\/task-notification>/g, "")
+    .replace(/<local-command-stdout>[\s\S]*?<\/local-command-stdout>/g, "")
+    .trim()
+    .slice(0, 6000);
+}
+
+async function parseConversation(cwd, sessionId) {
+  const file = path.join(PROJECTS_DIR, slugForCwd(cwd), sessionId + ".jsonl");
+  let lines;
+  try {
+    lines = await readTail(file, 1024 * 1024);
+  } catch {
+    return [];
+  }
+  const messages = [];
+  let toolCalls = 0;
+  const flushTools = () => {
+    if (toolCalls > 0) {
+      messages.push({ role: "tools", count: toolCalls });
+      toolCalls = 0;
+    }
+  };
+  for (const line of lines) {
+    let entry;
+    try {
+      entry = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (entry.isSidechain || !entry.message) continue;
+    if (entry.type === "assistant") {
+      const content = entry.message.content;
+      if (Array.isArray(content)) {
+        toolCalls += content.filter((b) => b && b.type === "tool_use").length;
+      }
+      const text = cleanConv(textFromContent(content));
+      if (text) {
+        flushTools();
+        messages.push({ role: "assistant", text, ts: entry.timestamp || null });
+      }
+    } else if (entry.type === "user") {
+      const human =
+        entry.origin?.kind === "human" ||
+        entry.promptSource === "typed" ||
+        typeof entry.message.content === "string";
+      if (!human) continue;
+      const text = cleanConv(textFromContent(entry.message.content));
+      if (text) {
+        flushTools();
+        messages.push({ role: "user", text, ts: entry.timestamp || null });
+      }
+    }
+  }
+  flushTools();
+  return messages.slice(-80);
+}
+
 // ------------------------------------------------- LLM titles and attention
 
 let titleCache = {}; // sessionId -> { key, title, attention, reason, at }
@@ -902,6 +964,19 @@ const server = http.createServer(async (req, res) => {
     }
     if (pathname === "/api/stats") {
       return sendJson(req, res, 200, await statsCached());
+    }
+    if (pathname === "/api/transcript") {
+      const url = new URL(req.url, `http://${req.headers.host}`);
+      const pid = Number(url.searchParams.get("pid"));
+      const agents = await agentsCached();
+      const agent = agents.find((a) => a.pid === pid);
+      if (!agent) return sendJson(req, res, 404, { error: "agent not found" });
+      const messages = await parseConversation(agent.cwd, agent.sessionId);
+      return sendJson(req, res, 200, {
+        codename: agent.codename,
+        title: agent.title,
+        messages,
+      });
     }
     if (pathname === "/api/broadcast" && req.method === "POST") {
       let body = "";

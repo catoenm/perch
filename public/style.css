@@ -240,29 +240,42 @@ body {
 .bcastbtn.on { color: var(--meter); border-color: var(--meter); }
 
 .bcastbar {
-  max-width: 1400px; margin: 8px auto 0; padding: 10px 14px;
-  margin-left: 32px; margin-right: 32px;
-  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  max-width: 720px; margin: 14px auto 2px; padding: 8px 10px 8px 18px;
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
   background: var(--surface-1);
-  border: 1px solid color-mix(in srgb, var(--meter) 45%, transparent);
-  border-radius: 12px;
+  border: 1px solid var(--hairline);
+  border-radius: 18px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.16), 0 2px 10px rgba(0, 0, 0, 0.07);
 }
-@media (min-width: 1464px) { .bcastbar { margin-left: auto; margin-right: auto; } }
+.bcastbar:focus-within {
+  border-color: color-mix(in srgb, var(--meter) 55%, transparent);
+}
 .bcastbar input {
-  flex: 1; min-width: 240px; font: inherit; font-size: 13px;
-  color: var(--text-primary); background: var(--page);
-  border: 1px solid var(--hairline); border-radius: 8px; padding: 7px 10px;
+  flex: 1; min-width: 220px; font: inherit; font-size: 14px;
+  color: var(--text-primary); background: none; border: none; padding: 8px 4px;
 }
-.bcastbar input:focus-visible { outline: 1px solid var(--meter); }
+.bcastbar input:focus-visible { outline: none; }
+.bcastbar input::placeholder { color: var(--text-muted); }
 .bcastbar button {
-  font: inherit; font-size: 12px; font-weight: 600; color: var(--text-secondary);
-  background: none; border: 1px solid var(--hairline); border-radius: 8px;
-  padding: 6px 12px; cursor: pointer;
+  font: inherit; font-size: 12px; font-weight: 600; color: var(--text-muted);
+  background: none; border: none; border-radius: 10px;
+  padding: 7px 10px; cursor: pointer;
 }
-.bcastbar button:hover:not(:disabled) { color: var(--text-primary); border-color: var(--text-muted); }
-.bcastbar button.primary { color: var(--page); background: var(--meter); border-color: var(--meter); }
-.bcastbar button.primary:disabled { opacity: 0.45; cursor: default; }
-.bcastbar .hint { flex-basis: 100%; color: var(--text-muted); font-size: 11px; }
+.bcastbar button:hover:not(:disabled) {
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--text-muted) 12%, transparent);
+}
+.bcastbar button.primary {
+  color: var(--page); background: var(--meter);
+  padding: 7px 16px; order: 10;
+}
+.bcastbar button.primary:hover:not(:disabled) { color: var(--page); background: var(--meter); filter: brightness(1.08); }
+.bcastbar button.primary:disabled { opacity: 0.4; cursor: default; }
+#bcastcancel { font-size: 14px; padding: 7px 9px; order: 11; }
+.bcastbar .hint {
+  flex-basis: 100%; order: 20; text-align: center;
+  color: var(--text-muted); font-size: 11px; padding: 2px 0 3px;
+}
 
 .card.selectable { border-style: dashed; }
 .card.selected {

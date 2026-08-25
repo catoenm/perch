@@ -487,7 +487,9 @@ document.getElementById("peekjump").addEventListener("click", async () => {
   }
 });
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape" && !peekEl.hidden) closePeek();
+  if (e.key !== "Escape") return;
+  if (!peekEl.hidden) closePeek();
+  else if (selectMode) setSelectMode(false);
 });
 document.getElementById("peeksend").addEventListener("click", sendFromPeek);
 document.getElementById("peekinput").addEventListener("keydown", (e) => {

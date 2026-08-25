@@ -306,7 +306,17 @@ body {
 .card:hover { border-color: var(--text-muted); transform: translateY(-1px); }
 .card.dim { opacity: 0.72; }
 
-.card-top { display: flex; align-items: center; gap: 12px; }
+.card-top { display: flex; align-items: center; gap: 12px; position: relative; }
+/* on hover the actions take the pill's spot — titles keep the width */
+.actions {
+  position: absolute; right: 0; top: 50%; transform: translateY(-50%);
+  display: flex; align-items: center; gap: 2px;
+  background: var(--surface-1); padding-left: 8px;
+  opacity: 0; pointer-events: none; transition: opacity 120ms ease;
+}
+.card:hover .actions { opacity: 1; pointer-events: auto; }
+.card:hover .pill { opacity: 0; }
+.pill { transition: opacity 120ms ease; }
 .avatar {
   width: 44px; height: 44px; border-radius: 12px; flex: none;
   overflow: hidden; border: 1px solid var(--border);
@@ -503,15 +513,19 @@ body {
 
 .overlay {
   position: fixed; inset: 0; z-index: 20;
-  background: rgba(0, 0, 0, 0.45);
-  display: flex; align-items: center; justify-content: center;
-  padding: 4vh 16px;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex; align-items: stretch; justify-content: flex-end;
 }
 .drawer {
-  width: min(760px, 100%); height: min(84vh, 900px);
-  background: var(--page); border: 1px solid var(--border);
-  border-radius: 16px; display: flex; flex-direction: column; overflow: hidden;
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
+  width: min(680px, 94vw); height: 100%;
+  background: var(--page); border-left: 1px solid var(--border);
+  display: flex; flex-direction: column; overflow: hidden;
+  box-shadow: -24px 0 80px rgba(0, 0, 0, 0.35);
+  animation: slidein 180ms ease;
+}
+@keyframes slidein {
+  from { transform: translateX(40px); opacity: 0.4; }
+  to { transform: translateX(0); opacity: 1; }
 }
 .drawer-head {
   display: flex; align-items: center; gap: 12px;
@@ -549,6 +563,17 @@ body {
   border-color: color-mix(in srgb, var(--meter) 30%, transparent);
 }
 .m-tools { text-align: center; color: var(--text-muted); font-size: 11px; }
+.bubble code, .bubble .mdcode {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px;
+  background: color-mix(in srgb, var(--text-muted) 12%, transparent);
+  border-radius: 4px; padding: 0 4px;
+}
+.bubble .mdcode {
+  display: block; padding: 8px 10px; margin: 4px 0;
+  overflow-x: auto; white-space: pre;
+}
+.bubble .mdh { font-weight: 700; display: inline-block; margin-top: 4px; }
+.bubble a { color: var(--meter); }
 .drawer-foot {
   display: flex; gap: 8px; padding: 12px 18px;
   border-top: 1px solid var(--hairline); background: var(--surface-1);

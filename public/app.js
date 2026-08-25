@@ -178,11 +178,13 @@ function card(agent) {
         <div class="path"><b>${esc(agent.codename || agent.name)}</b> · ${esc(agent.project)}${agent.gitBranch && agent.gitBranch !== "HEAD" ? " · " + esc(agent.gitBranch) : ""}</div>
       </div>
       <div class="pill s-${agent.bucket}"><span class="dot"></span>${esc(agent.statusLabel)}</div>
-      <button class="peekbtn" data-pid="${agent.pid}" title="Show conversation" aria-label="Show conversation">⤢</button>
-      <button class="msg" data-pid="${agent.pid}" data-codename="${esc(agent.codename || agent.name)}"
-        title="Send a prompt to this agent" aria-label="Send a prompt to this agent">➤</button>
-      <button class="star ${agent.starred ? "on" : ""}" data-session="${agent.sessionId}"
-        title="${agent.starred ? "Unpin" : "Pin to top"}" aria-label="${agent.starred ? "Unpin" : "Pin to top"}">★</button>
+      <span class="actions">
+        <button class="peekbtn" data-pid="${agent.pid}" title="Show conversation" aria-label="Show conversation">⤢</button>
+        <button class="msg" data-pid="${agent.pid}" data-codename="${esc(agent.codename || agent.name)}"
+          title="Send a prompt to this agent" aria-label="Send a prompt to this agent">➤</button>
+        <button class="star ${agent.starred ? "on" : ""}" data-session="${agent.sessionId}"
+          title="${agent.starred ? "Unpin" : "Pin to top"}" aria-label="${agent.starred ? "Unpin" : "Pin to top"}">★</button>
+      </span>
     </div>
     <p class="line why ${whyClass}"><span class="k">why</span><span class="v">${esc(agent.attentionReason)} · attention ${agent.attention}</span></p>
     ${agent.lastPrompt ? `<p class="line task"><span class="k">task</span><span class="v">${esc(agent.lastPrompt)}</span></p>` : ""}
@@ -413,6 +415,58 @@ function openComposer(msgBtn) {
   input.focus();
 }
 
+// -------------------------------------------------------- markdown (light)
+// Escape first, then decorate. Links only for http(s), quotes neutralized.
+
+function md(text) {
+  let s = esc(text);
+  s = s.replace(/```\w*\n?([\s\S]*?)```/g, (m, code) => `<pre class="mdcode">${code.trimEnd()}</pre>`);
+  s = s.replace(/`([^`\n]+)`/g, "<code>$1</code>");
+  s = s.replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>");
+  s = s.replace(/(^|[\s(])\*([^*\n]+)\*(?=[\s).,!?:;]|$)/gm, "$1<i>$2</i>");
+  s = s.replace(/^#{1,4}\s+(.+)$/gm, '<span class="mdh">$1</span>');
+  s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, (m, label, url) =>
+    `<a href="${url.replace(/"/g, "%22")}" target="_blank" rel="noopener">${label}</a>`);
+  return s;
+}
+
+// -------------------------------------------------------------- image paste
+// Pasted images upload to the local server, which saves them to disk; the
+// file path is inserted into the prompt for the agent to Read.
+
+function attachPasteHandler(input) {
+  input.addEventListener("paste", async (e) => {
+    const item = [...(e.clipboardData?.items || [])].find((i) => i.type.startsWith("image/"));
+    if (!item) return;
+    e.preventDefault();
+    const file = item.getAsFile();
+    if (!file) return;
+    showToast("Uploading image…");
+    const dataUrl = await new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.readAsDataURL(file);
+    });
+    try {
+      const res = await fetch(API + "/api/attachment", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ data: dataUrl }),
+      });
+      const out = await res.json();
+      if (!out.path) throw new Error();
+      const sep = input.value && !input.value.endsWith(" ") ? " " : "";
+      input.value += `${sep}Look at the image at ${out.path} `;
+      input.dispatchEvent(new Event("input"));
+      showToast("Image attached — path added to the prompt");
+    } catch {
+      showToast("Image upload failed");
+    }
+  });
+}
+attachPasteHandler(bcastText);
+attachPasteHandler(document.getElementById("peekinput"));
+
 // ---------------------------------------------------------- transcript peek
 
 const peekEl = document.getElementById("peek");
@@ -428,7 +482,7 @@ function renderPeek(data) {
   const atBottom = peekBody.scrollHeight - peekBody.scrollTop - peekBody.clientHeight < 60;
   peekBody.innerHTML = data.messages.map((m) => {
     if (m.role === "tools") return `<div class="m-tools">⋯ ${m.count} tool call${m.count > 1 ? "s" : ""} ⋯</div>`;
-    return `<div class="m ${m.role}"><span class="who">${m.role === "user" ? "you" : "agent"}</span><div class="bubble">${esc(m.text)}</div></div>`;
+    return `<div class="m ${m.role}"><span class="who">${m.role === "user" ? "you" : "agent"}</span><div class="bubble">${md(m.text)}</div></div>`;
   }).join("") || `<div class="m-tools">no conversation yet</div>`;
   if (atBottom || !peekBody.dataset.scrolled) peekBody.scrollTop = peekBody.scrollHeight;
 }

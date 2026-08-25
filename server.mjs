@@ -74,6 +74,7 @@ function stripNoise(text) {
     .replace(/<command-name>([\s\S]*?)<\/command-name>/g, "$1")
     .replace(/<local-command-stdout>[\s\S]*?<\/local-command-stdout>/g, " ")
     .replace(/<bash-(stdout|stderr|input)>[\s\S]*?<\/bash-\1>/g, " ")
+    .replace(/\[Image[^\]]*\]/gi, " ") // pasted-image placeholders are noise
     .replace(/\x1b\[[0-9;]*[A-Za-z]/g, " ") // ANSI escapes
     .replace(/\[[0-9;]{1,16}m/g, " ") // ANSI remnants with the ESC already lost
     .replace(/\s+/g, " ")
@@ -90,7 +91,11 @@ function textFromContent(content) {
 }
 
 function snippet(text, max = 280) {
-  const clean = stripNoise(text);
+  // card lines are plain text — strip markdown tokens rather than render them
+  const clean = stripNoise(text)
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/^#{1,4}\s+/gm, "");
   return clean.length > max ? clean.slice(0, max - 1).trimEnd() + "…" : clean;
 }
 
@@ -210,6 +215,32 @@ async function parseTranscript(cwd, sessionId) {
     }
   }
   return result;
+}
+
+// -------------------------------------------------------------- attachments
+// Pasted images are saved locally and referenced by path in the injected
+// prompt — agents Read the file themselves. Old files pruned after 7 days.
+
+const ATTACH_DIR = path.join(os.homedir(), "Library/Application Support/perch/attachments");
+const ATTACH_EXT = { "image/png": "png", "image/jpeg": "jpg", "image/gif": "gif", "image/webp": "webp" };
+
+async function saveAttachment(dataUrl) {
+  const match = /^data:(image\/(?:png|jpeg|gif|webp));base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl || "");
+  if (!match) return null;
+  const buf = Buffer.from(match[2], "base64");
+  if (buf.length > 12 * 1024 * 1024) return null;
+  await fs.mkdir(ATTACH_DIR, { recursive: true });
+  const file = path.join(ATTACH_DIR, `paste-${Date.now()}.${ATTACH_EXT[match[1]]}`);
+  await fs.writeFile(file, buf);
+  // prune old attachments
+  try {
+    const cutoff = Date.now() - 7 * 86400 * 1000;
+    for (const f of await fs.readdir(ATTACH_DIR)) {
+      const p = path.join(ATTACH_DIR, f);
+      if ((await fs.stat(p)).mtimeMs < cutoff) await fs.rm(p, { force: true });
+    }
+  } catch {}
+  return file;
 }
 
 // ------------------------------------------------------ conversation peek
@@ -1053,6 +1084,19 @@ const server = http.createServer(async (req, res) => {
         return sendJson(req, res, 400, { error: "pids[] and text required" });
       }
       return sendJson(req, res, 200, await broadcastPrompt(pids.map(Number), text));
+    }
+    if (pathname === "/api/attachment" && req.method === "POST") {
+      let body = "";
+      for await (const chunk of req) {
+        body += chunk;
+        if (body.length > 20 * 1024 * 1024) {
+          return sendJson(req, res, 413, { error: "too large" });
+        }
+      }
+      const { data } = JSON.parse(body || "{}");
+      const file = await saveAttachment(data);
+      if (!file) return sendJson(req, res, 400, { error: "expected a data: URL for png/jpeg/gif/webp under 12MB" });
+      return sendJson(req, res, 200, { ok: true, path: file });
     }
     if (pathname === "/api/outbox" && req.method === "POST") {
       let body = "";

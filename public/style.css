@@ -563,6 +563,9 @@ body {
   border-color: color-mix(in srgb, var(--meter) 30%, transparent);
 }
 .m-tools { text-align: center; color: var(--text-muted); font-size: 11px; }
+.m.pending .bubble { opacity: 0.75; border-style: dashed; }
+.m.pending.failed .bubble { border-color: var(--status-critical); opacity: 0.9; }
+.m.pending.failed .who { color: var(--status-critical); }
 .bubble code, .bubble .mdcode {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px;
   background: color-mix(in srgb, var(--text-muted) 12%, transparent);

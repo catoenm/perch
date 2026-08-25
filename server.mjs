@@ -1070,6 +1070,9 @@ const server = http.createServer(async (req, res) => {
       const agent = agents.find((a) => a.pid === pid);
       if (!agent) return sendJson(req, res, 404, { error: "agent not found" });
       const messages = await parseConversation(agent.cwd, agent.sessionId);
+      for (const item of outbox) {
+        if (item.pid === pid) messages.push({ role: "user", text: item.text, queued: true });
+      }
       return sendJson(req, res, 200, {
         codename: agent.codename,
         title: agent.title,

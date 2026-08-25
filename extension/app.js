@@ -474,16 +474,37 @@ const peekBody = document.getElementById("peekbody");
 let peekPid = null;
 let peekTimer = null;
 let peekPayload = "";
+let lastPeekData = null;
+let pendingMsgs = []; // optimistic sends: { text, state: sending|sent|failed }
+
+const normText = (s) => (s || "").replace(/\s+/g, " ").trim();
 
 function renderPeek(data) {
-  const payload = JSON.stringify(data.messages);
+  if (data) lastPeekData = data;
+  else data = lastPeekData;
+  if (!data) return;
+  // drop optimistic bubbles once the real transcript shows them
+  const userNorms = data.messages
+    .filter((m) => m.role === "user")
+    .slice(-10)
+    .map((m) => normText(m.text));
+  pendingMsgs = pendingMsgs.filter(
+    (p) => p.state !== "sent" || !userNorms.some((u) => u.startsWith(normText(p.text).slice(0, 200)))
+  );
+  const payload = JSON.stringify([data.messages, pendingMsgs]);
   if (payload === peekPayload) return;
   peekPayload = payload;
   const atBottom = peekBody.scrollHeight - peekBody.scrollTop - peekBody.clientHeight < 60;
-  peekBody.innerHTML = data.messages.map((m) => {
-    if (m.role === "tools") return `<div class="m-tools">⋯ ${m.count} tool call${m.count > 1 ? "s" : ""} ⋯</div>`;
-    return `<div class="m ${m.role}"><span class="who">${m.role === "user" ? "you" : "agent"}</span><div class="bubble">${md(m.text)}</div></div>`;
-  }).join("") || `<div class="m-tools">no conversation yet</div>`;
+  const STATE_TAG = { sending: " · sending…", sent: " · sent", failed: " · failed" };
+  peekBody.innerHTML =
+    (data.messages.map((m) => {
+      if (m.role === "tools") return `<div class="m-tools">⋯ ${m.count} tool call${m.count > 1 ? "s" : ""} ⋯</div>`;
+      const tag = m.queued ? " · queued — delivers when it's done" : "";
+      return `<div class="m ${m.role}${m.queued ? " pending" : ""}"><span class="who">${m.role === "user" ? "you" : "agent"}${tag}</span><div class="bubble">${md(m.text)}</div></div>`;
+    }).join("") +
+    pendingMsgs.map((p) =>
+      `<div class="m user pending ${p.state}"><span class="who">you${STATE_TAG[p.state] || ""}</span><div class="bubble">${md(p.text)}</div></div>`
+    ).join("")) || `<div class="m-tools">no conversation yet</div>`;
   if (atBottom || !peekBody.dataset.scrolled) peekBody.scrollTop = peekBody.scrollHeight;
 }
 
@@ -503,6 +524,8 @@ function openPeek(pid) {
   if (!agent) return;
   peekPid = pid;
   peekPayload = "";
+  lastPeekData = null;
+  pendingMsgs = [];
   document.getElementById("peekavatar").innerHTML = birdSvg(agent);
   document.getElementById("peektitle").textContent = agent.title || agent.codename;
   document.getElementById("peeksub").textContent = `${agent.codename} · ${agent.project}`;
@@ -555,6 +578,9 @@ async function sendFromPeek() {
   const text = input.value.trim();
   if (!text || peekPid == null) return;
   input.value = "";
+  const pending = { text, state: "sending" };
+  pendingMsgs.push(pending);
+  renderPeek(null);
   try {
     const res = await fetch(API + "/api/broadcast", {
       method: "POST",
@@ -563,9 +589,23 @@ async function sendFromPeek() {
     });
     const { results } = await res.json();
     const r = results[0] || {};
-    showToast(r.sent ? "Sent ➤" : r.queued ? "Queued — delivers when it's done" : "Couldn't reach the terminal");
-    setTimeout(refreshPeek, 800);
+    if (r.queued) {
+      // the transcript now carries it as a queued entry — no local copy needed
+      pendingMsgs = pendingMsgs.filter((p) => p !== pending);
+    } else if (r.sent) {
+      pending.state = "sent";
+    } else {
+      pending.state = "failed";
+      setTimeout(() => {
+        pendingMsgs = pendingMsgs.filter((p) => p !== pending);
+        renderPeek(null);
+      }, 5000);
+    }
+    renderPeek(null);
+    setTimeout(refreshPeek, 600);
   } catch {
+    pending.state = "failed";
+    renderPeek(null);
     showToast("Send failed");
   }
 }

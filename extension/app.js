@@ -178,6 +178,8 @@ function card(agent) {
         <div class="path"><b>${esc(agent.codename || agent.name)}</b> · ${esc(agent.project)}${agent.gitBranch && agent.gitBranch !== "HEAD" ? " · " + esc(agent.gitBranch) : ""}</div>
       </div>
       <div class="pill s-${agent.bucket}"><span class="dot"></span>${esc(agent.statusLabel)}</div>
+      <button class="msg" data-pid="${agent.pid}" data-codename="${esc(agent.codename || agent.name)}"
+        title="Send a prompt to this agent" aria-label="Send a prompt to this agent">➤</button>
       <button class="star ${agent.starred ? "on" : ""}" data-session="${agent.sessionId}"
         title="${agent.starred ? "Unpin" : "Pin to top"}" aria-label="${agent.starred ? "Unpin" : "Pin to top"}">★</button>
     </div>
@@ -350,7 +352,57 @@ function startRename(editBtn) {
   input.addEventListener("click", (e) => e.stopPropagation());
 }
 
+function openComposer(msgBtn) {
+  const cardEl = msgBtn.closest(".card");
+  const existing = cardEl.querySelector(".composer");
+  if (existing) return existing.querySelector("input").focus();
+  const pid = Number(msgBtn.dataset.pid);
+  const codename = msgBtn.dataset.codename;
+  const composer = document.createElement("div");
+  composer.className = "composer";
+  composer.innerHTML = `<input type="text" maxlength="4000" placeholder="Send a prompt to ${codename} — Enter submits it" /><button>Send</button>`;
+  cardEl.appendChild(composer);
+  editing = true;
+  const input = composer.querySelector("input");
+  const close = () => {
+    editing = false;
+    composer.remove();
+  };
+  const send = async () => {
+    const text = input.value.trim();
+    if (!text) return close();
+    close();
+    showToast(`Sending to ${codename}…`);
+    try {
+      const res = await fetch(API + "/api/broadcast", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ pids: [pid], text }),
+      });
+      const { results } = await res.json();
+      showToast(results[0]?.sent ? `Sent to ${codename} ➤` : `Couldn't reach ${codename}'s terminal`);
+    } catch {
+      showToast("Send failed");
+    }
+  };
+  composer.addEventListener("click", (e) => e.stopPropagation());
+  composer.querySelector("button").addEventListener("click", send);
+  input.addEventListener("keydown", (e) => {
+    e.stopPropagation();
+    if (e.key === "Enter") send();
+    if (e.key === "Escape") close();
+  });
+  input.addEventListener("blur", () => setTimeout(() => { if (document.activeElement !== input && composer.isConnected && !composer.contains(document.activeElement)) close(); }, 150));
+  input.focus();
+}
+
 grid.addEventListener("click", async (e) => {
+  const msgBtn = e.target.closest(".msg");
+  if (msgBtn && !selectMode) {
+    e.stopPropagation();
+    openComposer(msgBtn);
+    return;
+  }
   const editBtn = e.target.closest(".edit");
   if (editBtn && !selectMode) {
     e.stopPropagation();

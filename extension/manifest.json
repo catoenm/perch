@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Perch",
-  "version": "0.6.3",
+  "version": "0.6.4",
   "description": "Your Claude Code agents on every new tab — status, context, attention ranking, one click back to the terminal.",
   "icons": {
     "16": "icons/icon16.png",

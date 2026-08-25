@@ -318,6 +318,26 @@ body {
 }
 .renameinput:focus-visible { outline: none; }
 
+.msg {
+  flex: none; font: inherit; font-size: 13px; line-height: 1;
+  color: var(--track); background: none; border: none;
+  padding: 4px 2px; cursor: pointer; transition: color 120ms ease, transform 120ms ease;
+}
+.msg:hover { color: var(--meter); transform: scale(1.15); }
+
+.composer { display: flex; gap: 8px; margin-top: 2px; }
+.composer input {
+  flex: 1; font: inherit; font-size: 13px; color: var(--text-primary);
+  background: var(--page); border: 1px solid var(--meter);
+  border-radius: 8px; padding: 6px 10px;
+}
+.composer input:focus-visible { outline: none; }
+.composer button {
+  font: inherit; font-size: 12px; font-weight: 600; color: var(--page);
+  background: var(--meter); border: 1px solid var(--meter);
+  border-radius: 8px; padding: 4px 12px; cursor: pointer;
+}
+
 .star {
   flex: none; font: inherit; font-size: 16px; line-height: 1;
   color: var(--track); background: none; border: none;

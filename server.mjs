@@ -329,7 +329,7 @@ function saveTitleCache() {
 function titleKey(agent) {
   // Re-summarize on a new human prompt or status-bucket change; refresh
   // long-running autonomous work every 10 minutes so "now" stays current.
-  const base = `v3|${agent.lastPromptAt || ""}|${agent.bucket}`;
+  const base = `v4|${agent.lastPromptAt || ""}|${agent.bucket}`;
   return agent.bucket === "working"
     ? `${base}|${Math.floor(Date.now() / 600_000)}`
     : base;
@@ -359,10 +359,10 @@ function runClaudeP(prompt) {
 
 function summarizePrompt(agent) {
   const cached = titleCache[agent.sessionId];
-  const prior = cached?.key?.startsWith("v3") ? cached.title : "";
+  const prior = cached?.key?.startsWith("v4") ? cached.title : "";
   return `You label terminal sessions that run the Claude Code AI agent, for a human juggling several at once.
 Reply with STRICT JSON only, no markdown fences: {"topic": string, "attention": integer, "reason": string}
-- topic: a 1-4 word Title Case noun phrase naming what this session is ABOUT — the project or workstream, like a tab label. Good: "Kalshi KYC", "Client Streaming Options", "Blog Post Styling", "Hyperliquid Exchange". Bad: "Fixing PR comments" (activity, not subject), "The agent is idle" (sentence). No trailing period.
+- topic: a 1-4 word Title Case noun phrase naming what this session is ABOUT — the specific feature or workstream, like a tab label. Good: "Kalshi KYC", "Client Streaming Options", "Blog Post Styling", "Hyperliquid Exchange". Bad: "Fixing PR comments" (activity, not subject), "The agent is idle" (sentence), "PR 32789" or "Backend PR" (a ticket number restated with no substance — say what the PR actually does instead), "Perch" or the bare app/repo name (too broad when the prompts describe a specific feature inside it — go one level deeper into what's actually being built or fixed). If a ticket/PR number appears, only include it alongside real subject matter, never alone.
 - If a prior topic is given and the session is still about the same work, return the prior topic UNCHANGED — stable labels beat clever ones.
 - attention: 0-10, how urgently the HUMAN is needed. 0-2 agent working fine on its own; 3-5 finished, idle, awaiting the next instruction; 6-8 the agent asked the human a question or hit a soft blocker; 9-10 hard-blocked (auth, permission, hardware touch, error loop).
 - reason: at most 7 words explaining the score (e.g. "needs YubiKey touch", "working autonomously").

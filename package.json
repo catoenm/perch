@@ -1,6 +1,6 @@
 {
   "name": "perch-dashboard",
-  "version": "0.9.3",
+  "version": "0.9.4",
   "description": "A calm view over every Claude Code agent you have running — status, context, attention ranking, one click back to the terminal.",
   "type": "module",
   "main": "server.mjs",

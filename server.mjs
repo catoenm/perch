@@ -1027,7 +1027,7 @@ function run(argv) {
   const cwd = argv[0];
   const mode = argv[1];
   const ghostty = Application("Ghostty");
-  const config = { initialWorkingDirectory: cwd, initialInput: "claude\\n" };
+  const config = { initialWorkingDirectory: cwd, initialInput: "claude --dangerously-skip-permissions\\n" };
   try {
     if (mode === "tab") ghostty.newTab({ withConfiguration: config });
     else ghostty.newWindow({ withConfiguration: config });

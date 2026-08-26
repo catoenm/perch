@@ -282,7 +282,11 @@ function setSpawnMode(on) {
   if (on) {
     if (selectMode) setSelectMode(false);
     spawnDirs = [...new Set(lastAgents.map((a) => a.project))];
+    const recent = [...lastAgents].sort((a, b) => (b.statusUpdatedAt || 0) - (a.statusUpdatedAt || 0))[0];
+    spawnDir.value = recent ? recent.project : "";
     spawnDir.focus();
+    spawnDir.select();
+    renderSuggest();
   }
 }
 
@@ -296,9 +300,11 @@ function renderSuggest() {
   const q = spawnDir.value.trim().toLowerCase();
   const matches = q ? spawnDirs.filter((d) => d.toLowerCase().includes(q)) : spawnDirs;
   if (!matches.length) return hideSuggest();
-  spawnActive = -1;
   spawnSuggest.innerHTML = matches.map((d) => `<div class="sitem">${esc(d)}</div>`).join("");
   spawnSuggest.hidden = false;
+  const exact = matches.indexOf(spawnDir.value.trim());
+  spawnActive = exact >= 0 ? exact : 0;
+  spawnSuggest.children[spawnActive].classList.add("active");
   for (const el of spawnSuggest.children) {
     el.addEventListener("mousedown", (e) => {
       e.preventDefault();
@@ -366,8 +372,9 @@ spawnDir.addEventListener("keydown", (e) => {
   }
   if (e.key === "Enter") {
     const items = [...spawnSuggest.children];
-    if (!spawnSuggest.hidden && spawnActive >= 0 && items[spawnActive]) {
-      spawnDir.value = items[spawnActive].textContent;
+    const active = spawnActive >= 0 ? items[spawnActive] : null;
+    if (active && !spawnSuggest.hidden && active.textContent !== spawnDir.value) {
+      spawnDir.value = active.textContent;
       hideSuggest();
       return;
     }
@@ -575,8 +582,8 @@ function attachPasteHandler(input) {
       });
       const out = await res.json();
       if (!out.path) throw new Error();
-      const sep = input.value && !input.value.endsWith(" ") ? " " : "";
-      input.value += `${sep}Look at the image at ${out.path} `;
+      const sep = input.value && !/\s$/.test(input.value) ? " " : "";
+      input.value += `${sep}[image: ${out.path}] `;
       input.dispatchEvent(new Event("input"));
       showToast("Image attached — path added to the prompt");
     } catch {
@@ -591,6 +598,7 @@ attachPasteHandler(document.getElementById("peekinput"));
 
 const peekEl = document.getElementById("peek");
 const peekBody = document.getElementById("peekbody");
+const peekInput = document.getElementById("peekinput");
 let peekPid = null;
 let peekTimer = null;
 let peekPayload = "";
@@ -649,12 +657,20 @@ function openPeek(pid) {
   document.getElementById("peekavatar").innerHTML = birdSvg(agent);
   document.getElementById("peektitle").textContent = agent.title || agent.codename;
   document.getElementById("peeksub").textContent = `${agent.codename} · ${agent.project}`;
-  document.getElementById("peekinput").placeholder = `Send a prompt to ${agent.codename} — Enter submits it`;
+  peekInput.placeholder = `Send a prompt to ${agent.codename} — Enter submits it, Shift+Enter for a new line`;
+  peekInput.value = "";
+  peekInput.style.height = "";
   peekBody.innerHTML = `<div class="m-tools">loading…</div>`;
   peekEl.hidden = false;
   refreshPeek();
   clearInterval(peekTimer);
   peekTimer = setInterval(refreshPeek, 3000);
+  peekInput.focus();
+}
+
+function growPeekInput() {
+  peekInput.style.height = "auto";
+  peekInput.style.height = `${peekInput.scrollHeight}px`;
 }
 
 function closePeek() {
@@ -690,19 +706,24 @@ document.addEventListener("keydown", (e) => {
   else if (!spawnBar.hidden) setSpawnMode(false);
 });
 document.getElementById("peeksend").addEventListener("click", sendFromPeek);
-document.getElementById("peekinput").addEventListener("keydown", (e) => {
+peekInput.addEventListener("input", growPeekInput);
+peekInput.addEventListener("keydown", (e) => {
   if (e.key === "Escape") {
     closePeek();
     return;
   }
   e.stopPropagation();
-  if (e.key === "Enter") sendFromPeek();
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    sendFromPeek();
+  }
 });
 async function sendFromPeek() {
-  const input = document.getElementById("peekinput");
+  const input = peekInput;
   const text = input.value.trim();
   if (!text || peekPid == null) return;
   input.value = "";
+  growPeekInput();
   const pending = { text, state: "sending" };
   pendingMsgs.push(pending);
   renderPeek(null);

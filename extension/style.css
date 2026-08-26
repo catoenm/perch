@@ -290,7 +290,8 @@ body {
   border-radius: 7px; cursor: pointer;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.sitem:hover, .sitem.active { background: color-mix(in srgb, var(--meter) 16%, transparent); color: var(--text-primary); }
+.sitem:hover { background: color-mix(in srgb, var(--text-muted) 12%, transparent); color: var(--text-primary); }
+.sitem.active { background: color-mix(in srgb, var(--meter) 16%, transparent); color: var(--text-primary); }
 
 .card.selectable { border-style: dashed; }
 .card.selected {
@@ -600,17 +601,19 @@ body {
 .bubble .mdh { font-weight: 700; display: inline-block; margin-top: 4px; }
 .bubble a { color: var(--meter); }
 .drawer-foot {
-  display: flex; gap: 8px; padding: 12px 18px;
+  display: flex; gap: 8px; padding: 12px 18px; align-items: flex-end;
   border-top: 1px solid var(--hairline); background: var(--surface-1);
 }
-.drawer-foot input {
+.drawer-foot textarea {
   flex: 1; font: inherit; font-size: 13px; color: var(--text-primary);
   background: var(--page); border: 1px solid var(--hairline);
-  border-radius: 8px; padding: 7px 10px;
+  border-radius: 8px; padding: 8px 10px; resize: none;
+  min-height: 64px; max-height: 240px; overflow-y: auto;
+  line-height: 1.4; white-space: pre-wrap;
 }
-.drawer-foot input:focus-visible { outline: 1px solid var(--meter); }
+.drawer-foot textarea:focus-visible { outline: 1px solid var(--meter); }
 .drawer-foot button {
-  font: inherit; font-size: 12px; font-weight: 600; color: var(--page);
+  flex: none; font: inherit; font-size: 12px; font-weight: 600; color: var(--page);
   background: var(--meter); border: 1px solid var(--meter);
   border-radius: 8px; padding: 6px 14px; cursor: pointer;
 }

@@ -277,6 +277,21 @@ body {
   color: var(--text-muted); font-size: 11px; padding: 2px 0 3px;
 }
 
+.acwrap { position: relative; flex: 1; min-width: 220px; }
+.acwrap input { width: 100%; flex: none; }
+.suggest {
+  position: absolute; top: calc(100% + 6px); left: 0; right: 0;
+  background: var(--surface-1); border: 1px solid var(--hairline);
+  border-radius: 10px; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+  max-height: 220px; overflow-y: auto; z-index: 5; padding: 4px;
+}
+.sitem {
+  padding: 7px 10px; font-size: 13px; color: var(--text-secondary);
+  border-radius: 7px; cursor: pointer;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.sitem:hover, .sitem.active { background: color-mix(in srgb, var(--meter) 16%, transparent); color: var(--text-primary); }
+
 .card.selectable { border-style: dashed; }
 .card.selected {
   border-color: var(--meter);
@@ -503,6 +518,13 @@ body {
 
 .gh { color: var(--text-muted); display: flex; align-items: center; }
 .gh:hover { color: var(--text-primary); }
+
+.iconbtn {
+  flex: none; color: var(--text-muted); background: none; border: none;
+  display: flex; align-items: center; padding: 0; cursor: pointer;
+}
+.iconbtn:hover { color: var(--text-primary); }
+.iconbtn.on { color: var(--meter); }
 
 .peekbtn {
   flex: none; font: inherit; font-size: 19px; line-height: 1;

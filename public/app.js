@@ -247,10 +247,7 @@ const selected = new Set();
 function setSelectMode(on) {
   selectMode = on;
   if (!on) selected.clear();
-  if (on && !document.getElementById("spawnbar").hidden) {
-    document.getElementById("spawnbar").hidden = true;
-    document.getElementById("spawnbtn").classList.remove("on");
-  }
+  if (on && !document.getElementById("spawnbar").hidden) setSpawnMode(false);
   bcastBar.hidden = !on;
   bcastBtn.classList.toggle("on", on);
   updateSendButton();
@@ -274,23 +271,63 @@ bcastBtn.addEventListener("click", () => setSelectMode(!selectMode));
 const spawnBar = document.getElementById("spawnbar");
 const spawnDir = document.getElementById("spawndir");
 const spawnBtn = document.getElementById("spawnbtn");
+const spawnSuggest = document.getElementById("spawnsuggest");
+let spawnDirs = [];
+let spawnActive = -1;
 
 function setSpawnMode(on) {
   spawnBar.hidden = !on;
   spawnBtn.classList.toggle("on", on);
+  hideSuggest();
   if (on) {
     if (selectMode) setSelectMode(false);
-    const dirs = [...new Set(lastAgents.map((a) => a.project))];
-    document.getElementById("spawndirs").innerHTML = dirs
-      .map((d) => `<option value="${esc(d)}">`)
-      .join("");
+    spawnDirs = [...new Set(lastAgents.map((a) => a.project))];
     spawnDir.focus();
   }
 }
 
+function hideSuggest() {
+  spawnSuggest.hidden = true;
+  spawnSuggest.innerHTML = "";
+  spawnActive = -1;
+}
+
+function renderSuggest() {
+  const q = spawnDir.value.trim().toLowerCase();
+  const matches = q ? spawnDirs.filter((d) => d.toLowerCase().includes(q)) : spawnDirs;
+  if (!matches.length) return hideSuggest();
+  spawnActive = -1;
+  spawnSuggest.innerHTML = matches.map((d) => `<div class="sitem">${esc(d)}</div>`).join("");
+  spawnSuggest.hidden = false;
+  for (const el of spawnSuggest.children) {
+    el.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      spawnDir.value = el.textContent;
+      hideSuggest();
+      spawnDir.focus();
+    });
+  }
+}
+
+function moveSuggest(delta) {
+  const items = [...spawnSuggest.children];
+  if (!items.length) return;
+  items[spawnActive]?.classList.remove("active");
+  spawnActive = (spawnActive + delta + items.length) % items.length;
+  items[spawnActive].classList.add("active");
+  items[spawnActive].scrollIntoView({ block: "nearest" });
+}
+
+spawnDir.addEventListener("input", renderSuggest);
+spawnDir.addEventListener("focus", renderSuggest);
+document.addEventListener("click", (e) => {
+  if (!spawnBar.hidden && !spawnBar.contains(e.target)) hideSuggest();
+});
+
 async function doSpawn(mode) {
   const cwd = spawnDir.value.trim();
   if (!cwd) return;
+  hideSuggest();
   showToast("Hatching a new agent…");
   try {
     const res = await fetch(API + "/api/spawn", {
@@ -317,8 +354,30 @@ document.getElementById("spawngo").addEventListener("click", () => doSpawn("wind
 document.getElementById("spawntab").addEventListener("click", () => doSpawn("tab"));
 spawnDir.addEventListener("keydown", (e) => {
   e.stopPropagation();
-  if (e.key === "Enter") doSpawn(e.metaKey || e.ctrlKey ? "tab" : "window");
-  if (e.key === "Escape") setSpawnMode(false);
+  if (e.key === "ArrowDown" && !spawnSuggest.hidden) {
+    e.preventDefault();
+    moveSuggest(1);
+    return;
+  }
+  if (e.key === "ArrowUp" && !spawnSuggest.hidden) {
+    e.preventDefault();
+    moveSuggest(-1);
+    return;
+  }
+  if (e.key === "Enter") {
+    const items = [...spawnSuggest.children];
+    if (!spawnSuggest.hidden && spawnActive >= 0 && items[spawnActive]) {
+      spawnDir.value = items[spawnActive].textContent;
+      hideSuggest();
+      return;
+    }
+    doSpawn(e.metaKey || e.ctrlKey ? "tab" : "window");
+    return;
+  }
+  if (e.key === "Escape") {
+    if (!spawnSuggest.hidden) hideSuggest();
+    else setSpawnMode(false);
+  }
 });
 
 // ----------------------------------------------------------------- hotkeys
@@ -326,11 +385,16 @@ spawnDir.addEventListener("keydown", (e) => {
 
 const IS_MAC = /Mac|iP(hone|ad|od)/.test(navigator.platform);
 document.getElementById("bcastkbd").textContent = IS_MAC ? "⌘B" : "Ctrl+B";
+spawnBtn.title = "New agent — " + (IS_MAC ? "⌘⇧A" : "Ctrl+Shift+A");
 document.addEventListener("keydown", (e) => {
   const mod = IS_MAC ? e.metaKey && !e.ctrlKey : e.ctrlKey;
   if (mod && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "b") {
     e.preventDefault();
     setSelectMode(!selectMode);
+  }
+  if (mod && e.shiftKey && !e.altKey && e.key.toLowerCase() === "a") {
+    e.preventDefault();
+    setSpawnMode(spawnBar.hidden);
   }
 });
 document.getElementById("bcastcancel").addEventListener("click", () => setSelectMode(false));
